@@ -1,0 +1,14 @@
+{
+  "name": "Topfaith Nexus",
+  "short_name": "Nexus",
+  "description": "Your courses, materials and study tools in one place.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#7c3aed",
+  "theme_color": "#000000",
+  "icons": [
+    { "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

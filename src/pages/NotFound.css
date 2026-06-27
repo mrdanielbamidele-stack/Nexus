@@ -1,0 +1,136 @@
+@import url("https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,900");
+
+/* Everything is scoped under .notfound-page so the 404 screen can own the
+   viewport (full-height purple backdrop) without leaking styles into the
+   rest of the app. */
+.notfound-page {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh; /* account for mobile browser chrome */
+  width: 100%;
+  overflow: hidden;
+  /* Match the blanket color so the scene's lower area blends seamlessly into
+     the page and the brighter #7c3aed panel reads as a backdrop. */
+  background-color: #5b21b6;
+  font-family: "Source Sans Pro", sans-serif;
+  -webkit-font-smoothing: antialiased;
+
+  /* Mobile-first: scene on top, text below. The scene is LEFT-anchored (not
+     centered) so its bright panel bleeds off the top & left edges instead of
+     sitting in the page like a framed box. */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.notfound-page *,
+.notfound-page *::before,
+.notfound-page *::after {
+  box-sizing: border-box;
+}
+
+.notfound-page .stage {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 600px;
+  margin: 0; /* left-anchored -> bleeds into the corner */
+  aspect-ratio: 600 / 580;
+  /* Clip the stray beam/shadow geometry that extends past x=600 so it can't
+     widen the page and cause horizontal overflow on phones. */
+  overflow: hidden;
+}
+
+/* Both SVGs share the same coordinate space and must overlap. */
+.notfound-page .stage svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: auto;
+}
+
+.notfound-page #yetiSVG  { overflow: hidden;  }  /* clip the flashlight beam to the scene */
+.notfound-page #lightSVG { overflow: visible; }  /* let the 404 drop below the 470 scene */
+
+.notfound-page .content {
+  position: relative;
+  z-index: 10;
+  flex: 0 0 auto;
+  width: 100%;
+  padding: 1.25rem 1.5rem 2.5rem;
+  color: #fff;
+  text-align: center;
+  text-shadow:
+    -1px -1px 0 #000,
+     1px -1px 0 #000,
+    -1px  1px 0 #000,
+     1px  1px 0 #000;
+}
+
+.notfound-page .content h3 {
+  margin: 0 0 0.6rem;
+  font-size: clamp(1.4rem, 5vw, 2.625rem);
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.notfound-page .content p {
+  margin: 0 0 1.1rem;
+  font-size: clamp(0.95rem, 3.5vw, 1.25rem);
+  line-height: 1.45;
+  color: #ede9fe;
+}
+
+.notfound-page .content p span {
+  text-decoration: line-through;
+}
+
+.notfound-page .content .home-link {
+  display: inline-block;
+  padding: 0.7rem 1.6rem;
+  border-radius: 999px;
+  background: #fff;
+  color: #5b21b6;
+  font-weight: 900;
+  font-size: 1rem;
+  text-decoration: none;
+  text-shadow: none;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+  max-width: 190px;
+}
+
+.notfound-page .content .home-link:hover {
+  transform: translateY(-2px);
+  background: #ede9fe;
+}
+
+/* --- Wider screens: pin the scene into the top-left corner (original look)
+   and place the text beside it, vertically centered so it's always in view. --- */
+@media (min-width: 768px) {
+  .notfound-page {
+    display: block; /* stage goes absolute; content flows beside it */
+  }
+
+  .notfound-page .stage {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 600px;
+    max-width: none;
+    margin: 0;
+  }
+
+  .notfound-page .content {
+    width: auto;
+    /* Vertically center the text in the viewport, pushed to the right of the
+       yeti (which occupies roughly the left 400px of the scene). */
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 2rem 3rem 2rem 25rem;
+    text-align: left;
+  }
+}

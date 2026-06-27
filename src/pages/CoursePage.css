@@ -1,0 +1,400 @@
+/* ── CoursePage -matches Phy101/index.html visual style ─────── */
+
+/* Make .main a real, bounded scroll container on this page so the sticky
+   breadcrumb below actually engages. The global `.main { overflow-y: auto }`
+   has no height, so the page (not .main) scrolls -which silently disables
+   position: sticky. Pinning the app shell to the viewport height fixes that.
+   Scoped to .cp-app so other pages keep their normal page-scroll behaviour. */
+.cp-app {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.cp-app .main {
+  height: 100vh;
+  overflow-y: auto;
+}
+
+/* Sticky breadcrumb -stays pinned to the top while the page scrolls.
+   Sticky (not fixed) keeps it in normal flow, so it respects the sidebar
+   offset and the .main padding without overlapping the content below.
+   z-index sits under the mobile overlay (900) / ☰ button (1100). */
+.cp-breadcrumb {
+  position: sticky;
+  top: 64px;            /* mobile: clear the fixed ☰ menu button */
+  z-index: 500;
+}
+
+/* On small screens the pinned breadcrumb sits over the course-title heading
+   right behind it (only the narrow pill shows, so the title is hidden as soon
+   as you scroll). Let it scroll with the page here so the title stays visible. */
+@media (max-width: 767px) {
+  .cp-breadcrumb {
+    position: relative;
+    top: auto;
+  }
+}
+
+@media (min-width: 768px) {
+  .cp-breadcrumb {
+    top: 16px;          /* desktop: ☰ is hidden, sit near the top */
+  }
+}
+
+/* Spinner */
+@keyframes cp-spin { to { transform: rotate(360deg); } }
+.cp-spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid #eee;
+  border-top-color: var(--primary, #7c3aed);
+  animation: cp-spin 0.7s linear infinite;
+}
+
+/* Muted text */
+.muted { color: var(--text-muted, #6b7280); }
+
+/* Action buttons row */
+.cp-action-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 24px 0;
+  max-width: 500px;
+}
+
+.cp-action-btn {
+  padding: 16px 20px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.cp-past-questions,
+.cp-flashcards {
+  background: linear-gradient(135deg, #153677, #4e085f);
+  color: white;
+}
+
+.cp-past-questions:hover,
+.cp-flashcards:hover {
+  transform: translateY(-0.5px);
+  opacity: 0.8;
+}
+
+/* Search */
+.cp-search {
+  margin-top: 12px;
+  max-width: 400px;
+  margin-bottom: 12px;
+}
+
+.cp-search input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #e5e7eb);
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+}
+
+.cp-search input:focus {
+  border-color: var(--primary, #7c3aed);
+}
+
+/* Section */
+.cp-section { margin-top: 24px; }
+
+/* Cards grid */
+.cp-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 16px;
+}
+
+/* Individual card */
+.cp-card {
+  background: var(--card, #ffffff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Spacer pushes button to the bottom */
+.cp-card-spacer {
+  flex-grow: 1;
+  margin-top: 4px;
+  margin-bottom: 12px;
+}
+
+/* Mode selector
+   margin-top: auto pushes the selector + button block to the bottom of the
+   card. Because the cards in a row are all stretched to the same height by the
+   grid, this keeps every Download/Preview button aligned on the same "floor" -
+   if one title wraps to extra lines, every button drops to match it. */
+.cp-mode-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+  margin-bottom: 8px;
+}
+
+.cp-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border, #e5e7eb);
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.cp-mode-btn:hover {
+  border-color: var(--primary, #7c3aed);
+  background: #ede9fe;
+  color: var(--primary, #7c3aed);
+}
+
+.cp-mode-btn.selected {
+  border-color: var(--primary, #7c3aed);
+  background: #ede9fe;
+  color: var(--primary, #7c3aed);
+}
+
+.cp-mode-icon { font-size: 16px; flex-shrink: 0; }
+
+.cp-mode-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.cp-mode-label { font-weight: 600; font-size: 13px; }
+
+.cp-mode-desc {
+  font-size: 11px;
+  color: var(--text-muted, #6b7280);
+  font-weight: 400;
+}
+
+.cp-mode-btn.selected .cp-mode-desc { color: #7c3aed99; }
+
+.cp-radio-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border, #e5e7eb);
+  margin-left: auto;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  background: #fff;
+}
+
+.cp-mode-btn.selected .cp-radio-dot {
+  border-color: var(--primary, #7c3aed);
+  background: var(--primary, #7c3aed);
+  box-shadow: inset 0 0 0 3px #fff;
+}
+
+/* Go button */
+.cp-go-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  background: var(--primary, #7c3aed);
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.cp-go-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  box-shadow: 0 4px 12px -2px rgba(124, 58, 237, 0.4);
+  transform: translateY(-1px);
+}
+
+.cp-go-btn:active:not(:disabled) { transform: translateY(0); }
+
+.cp-go-btn.cp-btn-busy,
+.cp-go-btn:disabled { opacity: 0.7; cursor: default; }
+
+/* ── Big screens: lay each card out as a horizontal rectangle ──────
+   One card per row, with the title, the two mode options and the
+   action button arranged left-to-right instead of stacked. */
+@media (min-width: 1024px) {
+  /* Two wide (landscape) cards per row */
+  .cp-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  /* Lecturer-chosen titles can be long; allow up to two lines, then
+     truncate with an ellipsis so the card stays a tidy rectangle. */
+  .cp-card > strong {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Each mode option: label and description share one line */
+  .cp-mode-text {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .cp-mode-label { white-space: nowrap; }
+
+  .cp-mode-desc {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* ── File Preview Modal ───────────────────────────────────────── */
+@keyframes cp-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cp-pop-in {
+  from { opacity: 0; transform: scale(.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.cp-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  background: rgba(15, 23, 42, .55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: cp-fade-in .15s ease-out;
+}
+.cp-preview-modal {
+  width: 100%;
+  max-width: 920px;
+  max-height: 92vh;
+  background: #fff;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, .35);
+  animation: cp-pop-in .18s cubic-bezier(.16, 1, .3, 1);
+}
+.cp-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #eef0f4;
+  flex-shrink: 0;
+}
+.cp-preview-ficon { width: 30px; height: 30px; object-fit: contain; flex-shrink: 0; }
+.cp-preview-titles { flex: 1; min-width: 0; }
+.cp-preview-title {
+  font-size: 15px; font-weight: 700; color: #1e3a5f;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cp-preview-sub {
+  font-size: 12px; font-weight: 400; color: #9ca3af;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;
+}
+.cp-preview-close {
+  flex-shrink: 0; width: 34px; height: 34px; border-radius: 8px;
+  border: none; background: #f3f4f6; color: #6b7280;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background .15s, color .15s;
+}
+.cp-preview-close:hover { background: #fee2e2; color: #dc2626; }
+.cp-preview-body {
+  flex: 1 1 auto; min-height: 0; overflow: auto; background: #f3f4f6;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.cp-pv-img { max-width: 100%; max-height: 72vh; object-fit: contain; border-radius: 8px; display: block; }
+.cp-pv-video { width: 100%; max-width: 100%; max-height: 72vh; border-radius: 8px; background: #000; }
+.cp-pv-frame-wrap { position: relative; width: 100%; height: 72vh; }
+.cp-pv-frame { width: 100%; height: 100%; border: 0; border-radius: 8px; background: #fff; }
+.cp-pv-loading {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px;
+  color: #9ca3af; font-size: 13px;
+}
+.cp-pv-spin {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 3px solid #e5e7eb; border-top-color: var(--primary, #7c3aed);
+  animation: cp-spin .7s linear infinite;
+}
+.cp-pv-audio { display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; padding: 24px 8px; }
+.cp-pv-audio-icon { width: 72px; height: 72px; object-fit: contain; }
+.cp-pv-audio-el { width: 100%; max-width: 420px; }
+.cp-pv-none { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 40px 16px; }
+.cp-pv-none-icon { width: 72px; height: 72px; object-fit: contain; margin-bottom: 4px; opacity: .9; }
+.cp-pv-none-title { font-size: 15px; font-weight: 700; color: #1e3a5f; }
+.cp-pv-none-sub { font-size: 13px; font-weight: 400; color: #9ca3af; max-width: 320px; }
+.cp-preview-footer {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 12px; padding: 12px 18px; border-top: 1px solid #eef0f4;
+  flex-shrink: 0; flex-wrap: wrap;
+}
+.cp-preview-dl {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--primary, #7c3aed); color: #fff; border: none; border-radius: 8px;
+  padding: 9px 18px; font-size: 13px; font-weight: 600; font-family: inherit;
+  cursor: pointer; transition: background .15s, opacity .15s;
+}
+.cp-preview-dl:hover { background: #6d28d9; }
+.cp-preview-dl:disabled { opacity: .7; cursor: default; }
+
+@media (max-width: 600px) {
+  .cp-preview-overlay { padding: 12px; }
+  .cp-pv-frame-wrap { height: 64vh; }
+  .cp-pv-img, .cp-pv-video { max-height: 64vh; }
+}
+@media (max-width: 380px) {
+  .cp-preview-overlay { padding: 6px; }
+  .cp-preview-modal { border-radius: 12px; max-height: 94vh; }
+  .cp-preview-header { padding: 12px; gap: 10px; }
+  .cp-preview-ficon { width: 26px; height: 26px; }
+  .cp-preview-title { font-size: 14px; }
+  .cp-preview-sub { font-size: 11px; }
+  .cp-preview-close { width: 30px; height: 30px; }
+  .cp-preview-body { padding: 10px; }
+  .cp-preview-footer { padding: 10px 12px; }
+  .cp-preview-dl { flex: 1; justify-content: center; padding: 8px 14px; }
+  .cp-pv-frame-wrap { height: 60vh; }
+  .cp-pv-img, .cp-pv-video { max-height: 60vh; }
+  .cp-pv-audio-icon { width: 60px; height: 60px; }
+}

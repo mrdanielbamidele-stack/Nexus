@@ -1,0 +1,196 @@
+/* NotificationBell - bell button, unread badge, and dropdown panel. */
+
+/* Fixed mount point (top-right on every page, mirrors the mobile menu button). */
+.nx-bell-fixed {
+  position: fixed;
+  top: 15px;
+  right: 15px;
+  z-index: 1100;
+}
+
+.nx-bell {
+  position: relative;
+  display: inline-flex;
+}
+
+.nx-bell-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 999px;
+  background: #fff;
+  color: #374151;
+  font-size: 17px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.nx-bell-btn:hover {
+  background: #f5f3ff;
+  border-color: var(--primary, #7c3aed);
+  color: var(--primary, #7c3aed);
+}
+
+.nx-bell-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+/* ---- panel ---- */
+.nx-bell-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(340px, calc(100vw - 32px));
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(17, 24, 39, 0.16);
+  overflow: hidden;
+  z-index: 1000;
+  animation: nx-bell-in 0.14s ease;
+}
+@keyframes nx-bell-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.nx-bell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  font-weight: 700;
+  font-size: 14px;
+  color: #111827;
+}
+.nx-bell-clear {
+  border: none;
+  background: none;
+  color: var(--primary, #7c3aed);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.nx-bell-clear:hover { text-decoration: underline; }
+
+.nx-bell-list {
+  overflow-y: auto;
+}
+
+.nx-bell-item {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 30px 11px 14px; /* room for the X on the right */
+  border: none;
+  border-bottom: 1px solid #f3f4f6;
+  background: none;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.nx-bell-item:hover { background: #faf9ff; }
+
+/* New (since last opened): tinted background + purple left bar. */
+.nx-bell-item.is-new {
+  background: #f3efff;
+  box-shadow: inset 3px 0 0 var(--primary, #7c3aed);
+}
+.nx-bell-item.is-new:hover { background: #ece5ff; }
+
+/* Small dot marking an unread item. */
+.nx-bell-newdot {
+  position: absolute;
+  top: 14px;
+  right: 28px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--primary, #7c3aed);
+}
+
+/* Per-item delete (X). */
+.nx-bell-x {
+  position: absolute;
+  top: 8px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  color: #9ca3af;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nx-bell-x:hover { background: #f3f4f6; color: #ef4444; }
+
+.nx-bell-dot {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #fff;
+}
+.nx-bell-dot.mat { background: var(--primary, #7c3aed); }
+.nx-bell-dot.lib { background: #0ea5e9; }
+
+.nx-bell-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.nx-bell-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: #111827;
+}
+.nx-bell-text {
+  font-size: 12.5px;
+  color: #4b5563;
+  line-height: 1.35;
+}
+.nx-bell-time {
+  font-size: 11px;
+  color: #9ca3af;
+  margin-top: 1px;
+}
+
+.nx-bell-empty {
+  text-align: center;
+  padding: 30px 22px;
+  color: #6b7280;
+}
+.nx-bell-empty i { font-size: 26px; color: #c4b5fd; }
+.nx-bell-empty p { margin: 10px 0 4px; font-weight: 600; color: #374151; }
+.nx-bell-empty span { font-size: 12px; color: #9ca3af; }

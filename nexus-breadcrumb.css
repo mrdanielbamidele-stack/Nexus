@@ -1,0 +1,156 @@
+/* ============================================================
+   nexus-breadcrumb.css  - matches Nexus purple (#7c3aed)
+   Add this <link> tag in the <head> of index.html AND every
+   other page (e.g. campaign/hi.html, Courses/CSC112/index.html)
+   ============================================================ */
+
+.nx-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;          /* never break onto a 2nd line */
+  gap: 0;
+  margin-bottom: 18px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Shrink the font as the viewport narrows: 10px floor, 13px ceiling */
+  font-size: clamp(10px, 2.6vw, 13px);
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;               /* allow shrinking inside flex parents */
+  overflow: hidden;           /* clip anything that still can't fit */
+
+  /* ── On OTHER pages (course pages, campaign etc.)
+        sit below the ☰ menu button on mobile        */
+  position: relative;
+}
+
+/* ── On separate pages: push down on mobile to clear the ☰ btn ── */
+body > .nx-breadcrumb,
+.nx-page-top > .nx-breadcrumb,
+.nx-breadcrumb.nx-fixed {
+  position: fixed;
+  top: 64px;          /* below the ☰ button (40px btn + ~14px gap) */
+  left: 16px;
+  right: auto;
+  width: fit-content;             /* only as wide as the crumbs need */
+  max-width: calc(100vw - 32px);  /* but never overflow the viewport */
+  z-index: 500;
+  margin-bottom: 0;
+}
+
+/* On desktop (≥768px): sit to the right of the sidebar (260px) */
+@media (min-width: 768px) {
+  body > .nx-breadcrumb,
+  .nx-page-top > .nx-breadcrumb,
+  .nx-breadcrumb.nx-fixed {
+    position: fixed;
+    top: 16px;
+    left: calc(260px + 24px);   /* sidebar width + padding */
+    right: auto;
+    width: fit-content;
+    max-width: calc(100vw - 260px - 48px);
+  }
+}
+
+.nx-bc-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #6b7280;
+  text-decoration: none;
+  padding: 3px 6px;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 500;
+  border: none;
+  background: none;
+  font-size: inherit;          /* follow the container's clamped size */
+  font-family: inherit;
+  flex-shrink: 0;              /* short crumbs keep their full size */
+  max-width: 100%;
+  width: auto;                /* crumb buttons must size to content, not stretch
+                                 full-width from a global `button { width:100% }` rule */
+}
+
+.nx-bc-item:hover {
+  background: #f3f0ff;
+  color: #7c3aed;
+}
+
+/* Arrow icon */
+.nx-bc-item:not(.nx-bc-current)::before {
+  content: '';
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M10 12L6 8L10 4' stroke='%239ca3af' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  flex-shrink: 0;
+  opacity: 0;  /* only show on the direct-back crumb */
+}
+
+/* Show arrow only on the LAST non-current crumb (direct back target) */
+.nx-bc-item.nx-bc-prev::before {
+  opacity: 1;
+}
+
+.nx-bc-item:hover::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M10 12L6 8L10 4' stroke='%237c3aed' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* Current (last) crumb -the long filename. This is the crumb that gives way:
+   it shrinks and truncates with an ellipsis so the bar stays on one line. */
+.nx-bc-item.nx-bc-current {
+  display: block;
+  color: #111827;
+  font-weight: 600;
+  cursor: default;
+  pointer-events: none;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nx-bc-item.nx-bc-current:hover {
+  background: none;
+}
+
+/* Dot before home crumb */
+.nx-bc-home-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #7c3aed;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+/* Separator slash */
+.nx-bc-sep {
+  color: #d1d5db;
+  font-size: 1.08em;          /* scales with the clamped container font */
+  margin: 0 1px;
+  user-select: none;
+  line-height: 1;
+  flex-shrink: 0;             /* slashes never collapse */
+}
+
+/* Tighten spacing as the screen narrows so more text fits on one line */
+@media (max-width: 600px) {
+  .nx-breadcrumb { padding: 6px 8px; }
+  .nx-bc-item    { padding: 3px 4px; gap: 3px; }
+}
+
+/* Hide middle crumbs on small screens (keeps home + back + current) */
+@media (max-width: 480px) {
+  .nx-bc-item.nx-bc-middle { display: none; }
+  .nx-bc-sep.nx-bc-middle  { display: none; }
+}

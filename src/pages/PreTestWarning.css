@@ -1,0 +1,219 @@
+/* ── Overlay backdrop ─────────────────────────────────────────────────────── */
+.ptw-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(30, 41, 59, 0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+/* ── Modal card ───────────────────────────────────────────────────────────── */
+.ptw-modal {
+  background: #fff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
+  animation: ptw-pop 0.16s ease-out;
+}
+
+@keyframes ptw-pop {
+  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+.ptw-modal-header {
+  padding: 1.1rem 1.25rem 0rem;
+}
+
+.ptw-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 20px;
+  padding: 0.2rem 0.65rem;
+  margin-bottom: 0.5rem;
+}
+
+.ptw-course-name {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--primary, #3b82f6);
+  margin-bottom: 0.3rem;
+  letter-spacing: -0.01em;
+}
+
+.ptw-tagline {
+  font-size: 0.82rem;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Cannot-test section ──────────────────────────────────────────────────── */
+.ptw-cannot-section {
+  padding: 0.9rem 1.25rem;
+ 
+}
+
+.ptw-section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #b91c1c;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+}
+
+.ptw-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ptw-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  font-size: 0.81rem;
+  color: #374151;
+  line-height: 1.45;
+}
+
+.ptw-x {
+  flex-shrink: 0;
+  color: #dc2626;
+  font-weight: 800;
+  font-size: 0.7rem;
+  margin-top: 0.18rem;
+  width: 12px;
+  text-align: center;
+}
+
+/* ── Exam tip ─────────────────────────────────────────────────────────────── */
+.ptw-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: #fffbeb;
+  font-size: 0.8rem;
+  color: #78350f;
+  line-height: 1.5;
+}
+
+.ptw-tip i {
+  color: #f59e0b;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  font-size: 0.85rem;
+}
+
+.ptw-tip p { margin: 0; }
+
+/* ── Actions ──────────────────────────────────────────────────────────────── */
+.ptw-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1.25rem;
+  justify-content: flex-end;
+}
+
+.ptw-btn-back {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #475569;
+  background: transparent;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.48rem 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.ptw-btn-back:hover {
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+
+.ptw-btn-start {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--primary, #3b82f6);
+  border: none;
+  border-radius: 8px;
+  padding: 0.48rem 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.ptw-btn-start:hover { opacity: 0.88; }
+
+/* ── Mobile ───────────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .ptw-actions {
+    flex-direction: column-reverse;
+  }
+  .ptw-btn-back,
+  .ptw-btn-start {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── Very small screens (iPhone SE 1st gen, 320 × 568) ───────────────────── */
+@media (max-width: 360px) {
+  .ptw-overlay { padding: 0.6rem; }
+
+  .ptw-modal-header { padding: 0.75rem 0.9rem 0; }
+
+  .ptw-course-name { font-size: 0.82rem; }
+  .ptw-tagline     { font-size: 0.75rem; }
+
+  .ptw-cannot-section { padding: 0.6rem 0.9rem; }
+  .ptw-list { gap: 0.3rem; }
+  .ptw-list li { font-size: 0.75rem; line-height: 1.4; }
+
+  .ptw-tip { padding: 0.55rem 0.9rem; font-size: 0.74rem; }
+  .ptw-tip p { font-size: 0.74rem; }
+
+  .ptw-actions { padding: 0.6rem 0.9rem; gap: 0.45rem; }
+  .ptw-btn-back,
+  .ptw-btn-start { font-size: 0.78rem; padding: 0.42rem 0.75rem; }
+}
+
+/* ── Very short screens - ensure Start button is never cut off ────────────── */
+@media (max-height: 580px) {
+  .ptw-modal { max-height: 96vh; overflow-y: auto; }
+}

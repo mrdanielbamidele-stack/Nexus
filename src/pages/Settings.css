@@ -1,0 +1,345 @@
+/* ===================================================================
+   Settings page
+   =================================================================== */
+
+/* The app shell gives .main `overflow-y: auto`, which makes .main the sticky
+   context - but .main doesn't scroll internally (the window does), so a sticky
+   header rides along with it and disappears. On the Settings route we drop that
+   overflow so the window becomes the scroll container and the header can pin to
+   the viewport. Scoped with :has() so no other page is affected. */
+.main:has(.settings-page) {
+  overflow: visible;
+}
+
+.settings-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding-bottom: 48px;
+}
+
+/* ---- pink header banner (sticky: stays put, joined to the card below) ---- */
+.set-header-banner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #7c3aed;
+  border-radius: 20px 20px 0 0; /* round the top only - bottom joins the card */
+  padding: 22px 28px;
+  margin-bottom: 0;
+  color: #fff;
+}
+.set-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  font-size: 30px;
+  color: #fff;
+}
+.set-heading i { color: #fff; }
+.set-heading-sub {
+  margin: 8px 0 0;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 14px;
+}
+
+/* the first card sits flush under the banner, forming one panel */
+.set-header-banner + .set-card {
+  border-top: none;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* ---- card ---- */
+.set-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 24px;
+  margin-bottom: 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.set-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.set-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 18px;
+}
+.set-card-title i { color: var(--primary); width: 20px; text-align: center; }
+.set-card-sub {
+  margin: 6px 0 16px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ---- profile ---- */
+.set-profile {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.set-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), #4c1d95);
+}
+.set-profile-name { margin: 0; font-size: 22px; }
+.set-profile-reg { margin: 2px 0 0; color: var(--text-muted); font-size: 13px; }
+
+.set-label {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+}
+.set-name-row { display: flex; gap: 10px; align-items: center; }
+
+.set-input {
+  flex: 1;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 15px;
+  background: var(--card);
+  color: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.set-input:focus { border-color: var(--primary); }
+
+.set-btn-primary {
+  width: auto;
+  padding: 11px 22px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.set-btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+.set-btn-primary:not(:disabled):hover { opacity: 0.9; }
+
+.set-saved {
+  margin: 10px 0 0;
+  color: #16a34a;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ---- pills ---- */
+.set-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.set-pill {
+  background: #ede9fe;
+  color: #5b21b6;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ---- course list ---- */
+.set-course-list { list-style: none; margin: 0 0 4px; padding: 0; }
+.set-course-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.set-course-row:last-child { border-bottom: none; }
+.set-course-main { min-width: 0; }
+.set-course-code { font-weight: 700; font-size: 14px; display: block; }
+.set-course-title {
+  display: block;
+  color: var(--text-muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.set-course-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.set-course-credits { font-size: 12px; color: var(--text-muted); }
+
+.set-course-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 10px;
+}
+
+.set-course-remove {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #ef4444;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: background 0.15s;
+}
+.set-course-remove:hover { background: #fee2e2; }
+
+.set-confirm { display: inline-flex; gap: 6px; }
+.set-confirm-yes,
+.set-confirm-no {
+  width: auto;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.set-confirm-yes { background: #ef4444; color: #fff; }
+.set-confirm-yes:hover { opacity: 0.9; }
+.set-confirm-no {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
+.set-course-row.is-added .set-course-code::after {
+  content: "Added";
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--primary);
+  background: #ede9fe;
+  border-radius: 6px;
+  padding: 2px 6px;
+  vertical-align: middle;
+}
+
+/* ---- add course ---- */
+.set-add { position: relative; margin-top: 16px; }
+.set-add-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: var(--card);
+}
+.set-add-field i { color: var(--text-muted); }
+.set-add-field input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 11px 0;
+  font-size: 15px;
+  background: transparent;
+  color: inherit;
+}
+
+.set-add-results {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  max-height: 280px;
+  overflow-y: auto;
+}
+.set-add-results > li button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  color: inherit;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+.set-add-results > li button:hover { background: var(--bg); }
+.set-add-code { font-weight: 700; font-size: 13px; flex-shrink: 0; }
+.set-add-title {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.set-add-results .set-add-code + .set-add-title { min-width: 0; }
+.set-add-results > li button i { color: var(--primary); }
+.set-add-empty {
+  padding: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.set-note {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.set-note i { color: var(--primary); margin-top: 2px; }
+
+/* ---- danger ---- */
+.set-btn-danger {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 20px;
+  background: #fef2f2;
+  color: #ef4444;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.set-btn-danger:hover { background: #fee2e2; }
+
+/* ---- responsive ---- */
+@media (max-width: 480px) {
+  .set-card { padding: 18px 16px; }
+  .set-name-row { flex-direction: column; align-items: stretch; }
+  .set-btn-primary { width: 100%; }
+  .set-course-title { max-width: 150px; }
+}
