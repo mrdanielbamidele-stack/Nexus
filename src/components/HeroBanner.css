@@ -1,0 +1,100 @@
+/* Soft lavender banner shared by the Dashboard and the Settings hub. */
+
+.hb-banner {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  align-items: center;
+  gap: 12px;
+  min-height: 250px;
+  margin-bottom: 26px;
+  padding: 28px 38px;
+  border: 1px solid #e3dbf7;
+  border-radius: 26px;
+  background: radial-gradient(ellipse at 85% 30%, #e6defb, transparent 62%), #f3effc;
+  animation: hb-rise 0.45s ease both;
+}
+@keyframes hb-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.hb-copy h2 {
+  margin: 0 0 12px;
+  max-width: 440px;
+  font-family: 'Fraunces', ui-serif, Georgia, 'Times New Roman', serif;
+  font-size: clamp(26px, 3vw, 38px);
+  line-height: 1.12;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #46368a;
+}
+.hb-copy p {
+  margin: 0;
+  max-width: 400px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #7f77a3;
+}
+
+.hb-art {
+  position: relative;
+  width: min(100%, 310px);
+  margin: 0 auto;
+}
+.hb-art svg {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: auto;
+  animation: hb-float 6.5s ease-in-out infinite;
+}
+.hb-orbit {
+  position: absolute;
+  top: -6%;
+  left: 12%;
+  width: 78%;
+  aspect-ratio: 1;
+  border: 1px dashed #b9a8e880;
+  border-radius: 50%;
+  transform: rotate(-18deg);
+}
+.hb-orbit::before,
+.hb-orbit::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background: #d6c9f4;
+}
+.hb-orbit::before { width: 13px; height: 13px; left: 4%; top: 24%; }
+.hb-orbit::after  { width: 8px;  height: 8px;  right: -4px; top: 62%; }
+
+/* sparkles scattered round the artwork */
+.hb-twinkle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hb-twinkle 2.8s ease-in-out infinite;
+}
+@keyframes hb-twinkle {
+  0%, 100% { opacity: 0.35; transform: scale(0.6) rotate(0deg); }
+  50%      { opacity: 1;    transform: scale(1.15) rotate(20deg); }
+}
+
+@keyframes hb-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+@media (max-width: 760px) {
+  .hb-banner { grid-template-columns: 1fr; padding: 24px 22px; min-height: 0; }
+  .hb-art { width: 220px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hb-banner, .hb-art svg, .hb-twinkle { animation: none; }
+}
+
+/* On the dashboard it sits right under the greeting. */
+.hb-dashboard { margin: 22px 0 0; font-family: var(--up-serif);}
+ 

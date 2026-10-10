@@ -1,21 +1,47 @@
-/* ===== Auth flow (fake Google OAuth) ================================== */
+/* ===== Sign in / sign up / admin sign in ==============================
+   Dark violet scrim over the photo collage, one white card, a sliding
+   Sign in / Sign up switch.
+
+   App.css styles every bare `button` (width: 100%, padding, violet fill), so
+   each button class below sets its own width, padding and background. */
 
 .auth-root {
+  --auth-ink: #1a1033;
+  --auth-muted: #6a6585;
+  --auth-faint: #9a95b3;
+  --auth-line: #e4def5;
+  --auth-line-strong: #cfc5ee;
+  --auth-field: #faf8ff;
+  --auth-tint: #f1ecff;
+  --auth-violet: var(--primary, #7c3aed);
+  --auth-violet-deep: #5b21b6;
+  --auth-ring: rgba(124, 58, 237, 0.16);
+
   position: relative;
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 18px;
-  padding: 64px 20px 40px;
-  box-sizing: border-box;
-  background: #fff;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding: 32px 16px;
+  background: #140b2e; /* what shows while the photos load */
+  color: var(--auth-ink);
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-/* ----- image collage background (from login.html) ----- */
+.auth-root button,
+.auth-root input,
+.auth-root select {
+  font-family: inherit;
+}
+
+.auth-root :is(button, a):focus-visible {
+  outline: 2px solid var(--auth-violet);
+  outline-offset: 2px;
+}
+
+/* ----- photo collage + scrim ----- */
 .auth-collage {
   position: fixed;
   inset: 0;
@@ -25,12 +51,6 @@
   grid-template-rows: repeat(3, 1fr);
   gap: 8px;
   padding: 8px;
-}
-.auth-collage::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
 }
 .auth-collage-item {
   position: relative;
@@ -53,15 +73,21 @@
 .auth-collage-item:nth-child(8) { grid-column: 2; grid-row: 3; }
 .auth-collage-item:nth-child(9) { grid-column: 3 / 5; grid-row: 3; }
 
-/* keep the auth cards above the collage */
-.auth-card,
-.goog-card,
-.onb-card {
-  position: relative;
-  z-index: 2;
+/* The filter: a light violet wash so the photos stay clearly visible but sit
+   behind the card, with a soft glow where the card is. backdrop-filter is a
+   bonus - without it the tint still works. */
+.auth-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(55% 45% at 50% 40%, rgba(124, 58, 237, 0.2), transparent 72%),
+    linear-gradient(160deg, rgba(30, 14, 66, 0.5), rgba(46, 20, 100, 0.4) 55%, rgba(22, 10, 48, 0.52));
+  -webkit-backdrop-filter: saturate(0.85);
+  backdrop-filter: saturate(0.85);
 }
 
-/* Tablet -3 columns */
+/* Tablet - 3 columns */
 @media (min-width: 769px) and (max-width: 1024px) {
   .auth-collage {
     grid-template-columns: repeat(3, 1fr);
@@ -78,7 +104,7 @@
   .auth-collage-item:nth-child(9) { grid-column: 2 / 4; grid-row: 4; }
 }
 
-/* Mobile -2 columns */
+/* Mobile - 2 columns */
 @media (max-width: 768px) {
   .auth-collage {
     grid-template-columns: repeat(2, 1fr);
@@ -97,498 +123,479 @@
   .auth-collage-item:nth-child(9) { display: none; }
 }
 
-/* persistent "this is fake" banner */
-.auth-fakebanner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 50;
-  text-align: center;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #7c2d12;
-  background: #FEF3C7;
-  border-bottom: 1px solid #FCD34D;
-}
-.auth-fakebanner b { font-weight: 800; }
-
-/* ----- form card ----- */
+/* ----- card ----- */
 .auth-card {
+  --auth-pad: 32px;
+  /* Lets the hints size themselves to the card's width (cqw) so they stay on one line. */
+  container-type: inline-size;
+  position: relative;
+  z-index: 2;
   width: 100%;
-  max-width: 420px;
+  max-width: 460px;
+  padding: 28px var(--auth-pad) 22px;
   background: #fff;
-  border-radius: 18px;
-  padding: 34px 30px 26px;
-  box-sizing: border-box;
-  box-shadow: 0 18px 50px rgba(60, 50, 120, 0.12);
+  border-radius: 24px;
+  box-shadow:
+    0 32px 80px rgba(8, 4, 24, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .auth-brand {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin-bottom: 18px;
-   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  gap: 10px;
 }
 .auth-brand-badge {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: #7c3aed;
-  color: #fff;
-  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--auth-violet);
+  color: #fff;
   font-size: 20px;
+  font-weight: 800;
 }
-.auth-brand-name { font-weight: 700; font-size: 19px; color: #1a1a2e;font-family: inherit; }
+.auth-brand-name {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--auth-ink);
+}
+
+/* ----- Sign in / Sign up switch ----- */
+.auth-tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 22px 0 28px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--auth-tint);
+}
+.auth-tab-thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: 10px;
+  background: var(--auth-violet);
+  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.35);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.auth-tabs[data-active="signup"] .auth-tab-thumb {
+  transform: translateX(100%);
+}
+.auth-tab {
+  position: relative;
+  z-index: 1;
+  width: auto;
+  padding: 12px 0;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--auth-muted);
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+.auth-tab:hover { opacity: 1; color: var(--auth-ink); }
+.auth-tab[aria-selected="true"],
+.auth-tab[aria-selected="true"]:hover { color: #fff; }
+
+/* ----- headings ----- */
+.auth-view {
+  animation: auth-in 0.26s ease backwards;
+}
+@keyframes auth-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
 
 .auth-title {
-  text-align: center;
-  font-size: 26px;
+  margin: 0 0 22px;
+  font-size: 28px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--auth-ink);
+}
+/* A lead line (forgot / verify / reset) hugs the title instead of the form */
+.auth-title + .auth-lead { margin-top: -16px; }
+.auth-lead {
+  margin: 0 0 24px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--auth-muted);
+}
+.auth-lead strong { color: var(--auth-ink); }
+
+/* ----- form fields ----- */
+.auth-field {
+  display: block;
+  margin-bottom: 16px;
+}
+.auth-field-label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 13px;
   font-weight: 700;
-  color: #1a1a2e;
-  margin: 6px 0 22px;
+  color: var(--auth-ink);
+}
+/* Hints are one line, always. The text scales with the card (100cqw is the
+   card's inner width; the longest hint is roughly 34em wide), and on phones
+   the "like you@..." example drops away rather than wrapping. */
+.auth-field-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-size: clamp(10.5px, calc(100cqw / 34), 12px);
+  line-height: 1.4;
+  color: var(--auth-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 460px) {
+  .auth-hint-eg { display: none; }
 }
 
-.auth-google {
+.auth-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 50px;
+  padding: 0 14px;
+  border: 1.5px solid var(--auth-line);
+  border-radius: 12px;
+  background: var(--auth-field);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.auth-input:hover { border-color: var(--auth-line-strong); }
+.auth-input:focus-within {
+  border-color: var(--auth-violet);
+  background: #fff;
+  box-shadow: 0 0 0 4px var(--auth-ring);
+}
+.auth-input input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  height: 100%;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--auth-ink);
+  font-size: 15px;
+}
+.auth-input input::placeholder { color: var(--auth-faint); }
+
+/* Chrome paints autofilled fields blue; keep them on the card's colours. */
+.auth-input input:-webkit-autofill,
+.auth-input input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--auth-ink);
+  -webkit-box-shadow: 0 0 0 100px var(--auth-field) inset;
+  transition: background-color 9999s ease-out;
+}
+.auth-input:focus-within input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 100px #fff inset;
+}
+
+.auth-eye {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-right: -6px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  opacity: 0.55;
+  cursor: pointer;
+}
+.auth-eye:hover { opacity: 0.95; background: var(--auth-tint); }
+
+/* ----- type-or-pick list (course of study, level) ----- */
+.auth-combo { position: relative; }
+
+.auth-input.is-disabled {
+  background: var(--auth-tint);
+  border-color: var(--auth-line);
+}
+.auth-input.is-disabled:hover { border-color: var(--auth-line); }
+.auth-input input:disabled { cursor: not-allowed; }
+
+.auth-combo-chevron {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-right: -6px;
+  border-radius: 8px;
+  color: var(--auth-muted);
+  cursor: pointer;
+  transition: transform 0.2s ease, color 0.15s ease;
+}
+.auth-combo.is-open .auth-combo-chevron {
+  transform: rotate(180deg);
+  color: var(--auth-violet);
+}
+.auth-input.is-disabled .auth-combo-chevron { opacity: 0.4; cursor: not-allowed; }
+
+.auth-combo-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 248px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--auth-line-strong) transparent;
+  border: 1.5px solid var(--auth-line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(26, 16, 51, 0.18);
+  animation: auth-in 0.14s ease backwards;
+}
+.auth-combo-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 9px;
+  color: var(--auth-ink);
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.auth-combo-list li[aria-selected="true"] {
+  background: var(--auth-tint);
+  color: var(--auth-violet-deep);
+}
+.auth-combo-list li.chosen { color: var(--auth-violet-deep); font-weight: 700; }
+.auth-combo-list mark {
+  background: none;
+  color: var(--auth-violet);
+  font-weight: 800;
+}
+.auth-combo-list li.auth-combo-empty {
+  display: block;
+  min-height: 0;
+  padding: 12px;
+  color: var(--auth-muted);
+  font-weight: 500;
+  line-height: 1.45;
+  cursor: default;
+}
+
+/* "Forgot password?" sits right under the password box */
+.auth-aside {
+  display: flex;
+  justify-content: flex-end;
+  margin: -6px 0 16px;
+}
+
+/* ----- buttons ----- */
+.auth-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
+  height: 52px;
+  margin-top: 8px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background: var(--auth-violet);
+  color: #fff;
+  font-size: 15.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(124, 58, 237, 0.3);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.auth-submit:hover:not(:disabled) { background: var(--auth-violet-deep); opacity: 1; }
+.auth-submit:active:not(:disabled) { transform: translateY(1px); }
+.auth-submit:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+
+.auth-google {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: 13px 16px;
-  border: none;
-  border-radius: 10px;
-  background: black;
-  color: #fff;
+  width: 100%;
+  height: 52px;
+  padding: 0 16px;
+  border: 1.5px solid var(--auth-line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--auth-ink);
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  font-family: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
-.auth-google:hover { background: #322f4d; }
+.auth-google:hover:not(:disabled) {
+  background: var(--auth-field);
+  border-color: var(--auth-line-strong);
+  opacity: 1;
+}
+.auth-google:disabled { opacity: 0.6; cursor: wait; }
 
-.auth-row2 {
-  display: flex;
-  gap: 10px;
-  margin-top: 10px;
-}
-.auth-oauth-btn {
-  flex: 1;
-  display: flex;
+.auth-btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 12px;
-  border: 1.5px solid #E5E3EF;
+  width: auto;
+  padding: 11px 16px;
+  border: 1.5px solid var(--auth-violet);
   border-radius: 10px;
-  background: #fff;
-  color: #2b2b3c;
-  font-size: 14px;
+  background: var(--auth-violet);
+  color: #fff;
+  font-size: 13.5px;
   font-weight: 700;
+  text-decoration: none;
   cursor: pointer;
-  font-family: inherit;
 }
-.auth-oauth-btn:hover { background: #FAF9FF; }
+.auth-btn:hover:not(:disabled) { opacity: 0.92; }
+.auth-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.auth-btn.ghost {
+  background: #fff;
+  border-color: var(--auth-line);
+  color: var(--auth-muted);
+}
 
 .auth-or {
   display: flex;
   align-items: center;
-  text-align: center;
-  color: #9b9bb0;
+  margin: 20px 0;
   font-size: 13px;
-  margin: 18px 0;
+  color: var(--auth-faint);
 }
 .auth-or::before,
 .auth-or::after {
   content: "";
   flex: 1;
   height: 1px;
-  background: #E8E6F0;
+  background: var(--auth-line);
 }
-.auth-or span { padding: 0 12px; }
+.auth-or span { padding: 0 14px; }
 
-.auth-input {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  border: 1.5px solid #DDE3EF;
-  border-radius: 10px;
-  background: #fff;
-  color: #9b9bb0;
+/* ----- messages ----- */
+.auth-alert {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 13.5px;
+  line-height: 1.5;
 }
-.auth-input:focus-within { border-color: #7c3aed; }
-.auth-input input {
-  flex: 1;
-  border: none;
-  outline: none;
-  padding: 13px 0;
-  font-size: 15px;
-  font-family: inherit;
-  background: transparent;
-  color: #1a1a2e;
+.auth-alert p { margin: 0; font-weight: 600; }
+.auth-alert .auth-link {
+  display: inline-block;
+  margin: 8px 14px 0 0;
+  color: var(--auth-violet-deep);
 }
 
-.auth-continue {
-  width: 100%;
-  margin-top: 12px;
-  padding: 13px 16px;
-  border: none;
-  border-radius: 10px;
-  background: #EDE7FB;
-  color: #6d28d9;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
+.auth-confirm {
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid #dbcdfb;
+  border-radius: 12px;
+  background: #f7f5ff;
+  color: #3b2d73;
+  font-size: 14px;
+  line-height: 1.5;
 }
-.auth-continue:hover { background: #E3DAFA; }
+.auth-confirm p { margin: 0 0 12px; font-weight: 600; }
+.auth-confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .auth-fineprint {
   margin: 16px 0 0;
   text-align: center;
   font-size: 12.5px;
-  color: #9b9bb0;
+  line-height: 1.5;
+  color: var(--auth-faint);
 }
-.auth-fineprint a { color: #6b7280; text-decoration: underline; }
 
 .auth-switch {
-  margin: 18px 0 0;
+  margin: 16px 0 0;
   text-align: center;
-  font-size: 13.5px;
-  color: #6b7280;
+  font-size: 14px;
+  color: var(--auth-muted);
 }
+
 .auth-link {
+  display: inline;
+  width: auto;
+  padding: 0;
   border: none;
   background: none;
-  color: #7c3aed;
-  font-weight: 800;
-  cursor: pointer;
+  color: var(--auth-violet);
   font-size: 13.5px;
-  font-family: inherit;
-  padding: 0;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
 }
+.auth-link:hover { opacity: 1; text-decoration: underline; }
 
-/* ----- google account chooser (dark) ----- */
-.goog-card {
-  width: 100%;
-  max-width: 430px;
-  background: #1f1f23;
-  border: 1px solid #303034;
-  border-radius: 14px;
-  overflow: hidden;
-  color: #e3e3e6;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
-}
-.goog-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 18px;
-  border-bottom: 1px solid #303034;
+/* "Not a student? Staff Login" - a quiet row under a rule, edge to edge */
+.auth-footer {
+  margin: 24px calc(var(--auth-pad) * -1) 0;
+  padding: 18px var(--auth-pad) 0;
+  border-top: 1px solid var(--auth-line);
+  text-align: center;
   font-size: 14px;
-  font-weight: 600;
-  color: #e8eaed;
-  background: #232327;
+  color: var(--auth-muted);
 }
-.goog-body { padding: 26px 26px 20px; }
-.goog-appicon {
-  width: 46px;
-  height: 46px;
-  border-radius: 10px;
-  background: #fff;
-  color: #7c3aed;
-  font-weight: 800;
-  font-size: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 18px;
-}
-.goog-title { font-size: 26px; font-weight: 400; margin: 0 0 6px; color: #e8eaed; margin-top: 5px; }
-.goog-sub { margin: 0 0 22px; font-size: 14px; color: #bdc1c6; }
-.goog-sub span { color: #8ab4f8; }
-
-.goog-account {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 6px;
-  border: none;
-  border-top: 1px solid #303034;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-  font-family: inherit;
-}
-.goog-account:last-of-type { border-bottom: 1px solid #303034; }
-.goog-account:hover { background: #2a2a2f; }
-.goog-disabled { cursor: default; opacity: 0.55; }
-.goog-disabled:hover { background: transparent; }
-
-.goog-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: #fa521e;
-  color: #fff;
+.auth-footer a {
+  color: var(--auth-violet);
   font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
 }
-.goog-avatar-grey { background: #5f6368; }
-.goog-acc-text { display: flex; flex-direction: column; min-width: 0; }
-.goog-acc-name { font-size: 14px; color: #e8eaed; }
-.goog-acc-email { font-size: 13px; color: #bdc1c6; overflow-wrap: anywhere; }
+.auth-footer a:hover { text-decoration: underline; }
 
-.goog-footer {
-  margin: 22px 0 0;
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: #9aa0a6;
-}
-.goog-footer a { color: #8ab4f8; text-decoration: none; }
-
-.goog-back {
-  width: 100%;
-  padding: 12px;
-  border: none;
-  border-top: 1px solid #303034;
-  background: #232327;
-  color: #8ab4f8;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-}
-.goog-back:hover { background: #2a2a2f; }
-
-/* ----- onboarding ----- */
-.onb-card {
-  width: 100%;
-  max-width: 480px;
-  background: #fff;
-  border-radius: 18px;
-  padding: 32px 30px 28px;
-  box-sizing: border-box;
-  box-shadow: 0 18px 50px rgba(60, 50, 120, 0.12);
-}
-.onb-title { font-size: 24px; font-weight: 700; color: #1a1a2e; margin: 0 0 6px; }
-.onb-sub { font-size: 14px; color: #8b8b9e; margin: 0 0 22px; }
-
-.onb-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 700;
-  color: #4b4b63;
-  margin-bottom: 7px;
-}
-.onb-field {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 12px 14px;
-  border: 1.5px solid #DDE3EF;
-  border-radius: 10px;
-  font-size: 15px;
-  font-family: inherit;
-  color: #1a1a2e;
-  background: #FAFBFF;
-  outline: none;
-}
-.onb-field:focus { border-color: #7c3aed; }
-.onb-hint { font-size: 12.5px; color: #9b9bb0; margin: 7px 0 0; }
-
-.onb-result {
-  margin-top: 18px;
-  padding: 18px;
-  border-radius: 14px;
-  background: #F7F5FF;
-  border: 1px solid #ECE7FB;
-}
-.onb-courses-label {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #8b86a8;
-  margin: 16px 0 10px;
-}
-.onb-pills { display: flex; flex-wrap: wrap; gap: 9px; }
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 15px;
-  border-radius: 999px;
-  background: #7c3aed;
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.18);
-}
-
-/* programme / level header chips */
-.pill-strong {
-  padding: 9px 18px;
-  font-size: 13px;
-  font-weight: 700;
-  background: linear-gradient(135deg, #6d28d9, #9333ea);
-  box-shadow: 0 4px 12px rgba(109, 40, 217, 0.28);
-}
-
-/* fixed programme courses - solid, no remove */
-.pill-locked { background: #7c3aed; }
-
-/* courses the student added - lighter, removable */
-.pill-added {
-  background: #F2EDFE;
-  color: #6d28d9;
-  border: 1.5px solid #DBCDFB;
-  box-shadow: none;
-  padding-right: 6px;
-}
-.pill-remove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  margin-left: 1px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(124, 58, 237, 0.16);
-  color: #6d28d9;
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.pill-remove:hover { background: rgba(124, 58, 237, 0.32); }
-
-.onb-add { margin-top: 16px; }
-.onb-add-select {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 11px 14px;
-  border: 1.5px dashed #C9BEF0;
-  border-radius: 10px;
-  font-size: 14px;
-  font-family: inherit;
-  color: #6d28d9;
-  background: #fff;
-  cursor: pointer;
-}
-.onb-add-note { display: block; font-size: 12px; color: #9b9bb0; margin-top: 7px; }
-
-.onb-report-link {
-  display: inline-block;
-  margin-top: 16px;
-  border: none;
-  background: none;
-  padding: 0;
-  color: #7c3aed;
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: underline;
-  cursor: pointer;
-  font-family: inherit;
-}
-.onb-report { margin-top: 14px; }
-.onb-report-text {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 11px 14px;
-  border: 1.5px solid #DDE3EF;
-  border-radius: 10px;
-  font-size: 14px;
-  font-family: inherit;
-  resize: vertical;
-  outline: none;
-}
-.onb-report-text:focus { border-color: #7c3aed; }
-.onb-report-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
-.onb-report-cancel {
-  padding: 8px 14px;
-  border: 1.5px solid #E5E7EB;
-  border-radius: 8px;
-  background: #fff;
-  color: #4b4b63;
-  font-weight: 600;
-  font-size: 13px;
-  cursor: pointer;
-  font-family: inherit;
-}
-.onb-report-send {
-  padding: 8px 14px;
-  border: none;
-  border-radius: 8px;
-  background: #7c3aed;
-  color: #fff;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  font-family: inherit;
-}
-.onb-report-done {
-  margin-top: 14px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: #ECFDF5;
-  border: 1px solid #A7F3D0;
-  color: #065f46;
-  font-size: 13.5px;
-  font-weight: 600;
-}
-.onb-nomatch { margin-top: 16px; color: #b91c1c; font-size: 14px; font-weight: 600; }
-
-.onb-error { color: #b91c1c; font-size: 13.5px; font-weight: 600; margin: 14px 0 0; }
-
-.onb-submit {
-  width: 100%;
-  margin-top: 24px;
-  padding: 14px;
-  border: none;
-  border-radius: 10px;
-  background: #7c3aed;
-  color: #fff;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-}
-.onb-submit:hover { background: #6d28d9; }
-
+/* ----- small screens ----- */
 @media (max-width: 520px) {
-  .auth-card, .onb-card { padding: 26px 20px 22px; }
-  .auth-title { font-size: 23px; }
+  .auth-root { padding: 20px 16px; }
+  .auth-card { --auth-pad: 20px; padding-top: 24px; border-radius: 20px; }
+  .auth-title { font-size: 25px; }
+  /* 16px stops iOS zooming the page when a field is focused */
+  .auth-input input { font-size: 16px; }
 }
 
-/* Very narrow screens (~320px and below, e.g. Galaxy Fold) */
+/* Very narrow screens (~320px, e.g. Galaxy Fold) */
 @media (max-width: 360px) {
-  .auth-root { padding: 72px 12px 32px; }
-
-  .auth-card, .onb-card { padding: 22px 16px 20px; }
-  .auth-title { font-size: 21px; }
+  .auth-root { padding: 14px 10px; }
+  .auth-card { --auth-pad: 16px; }
+  .auth-title { font-size: 23px; }
   .auth-google { font-size: 14px; }
+}
 
-  .goog-body { padding: 20px 16px 16px; }
-  .goog-account { gap: 10px; padding: 12px 4px; }
-  .goog-title { font-size: 22px; }
-
-  .onb-result { padding: 14px; }
-  .pill { padding: 7px 13px; font-size: 12px; }
-  .pill-strong { padding: 8px 15px; font-size: 12.5px; }
+@media (prefers-reduced-motion: reduce) {
+  .auth-view,
+  .auth-combo-list { animation: none; }
+  .auth-tab-thumb,
+  .auth-tab,
+  .auth-input,
+  .auth-combo-chevron,
+  .auth-submit,
+  .auth-google { transition: none; }
 }

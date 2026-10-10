@@ -4,9 +4,9 @@
 // What this does:
 //   * Registers the service worker (public/sw.js).
 //   * Asks for notification permission and subscribes the browser to push.
-//   * Stores the subscription + the student's course codes in
-//     `public.push_subscriptions` so the notify-push Edge Function can target
-//     this device when a material is added to one of those courses.
+//   * Stores the subscription + the student's course codes on the server
+//     (/api/push) so it can target this device when a paper is added to one
+//     of those courses.
 //   * Re-syncs the course list to the row whenever the student adds/removes a
 //     course (so they only get pushed for what they're actually taking).
 //
@@ -16,7 +16,7 @@
 //     installed to the Home Screen ("Add to Home Screen"). In a normal Safari
 //     tab, iOS silently refuses to subscribe. We detect and surface that.
 
-import { supabasePublic as supabase } from "./supabase";
+import { api } from "./api";
 import { normalizeCode } from "./courseSlug";
 import { getEffectiveCourses } from "./studentCourses";
 
@@ -147,8 +147,8 @@ export async function enablePush() {
     try {
       await saveSubscription(sub);
     } catch (err) {
-      // The browser subscribed, but we couldn't persist it (e.g. RLS blocked
-      // the insert). Don't claim success - that hides a broken setup.
+      // The browser subscribed, but we couldn't persist it. Don't claim
+      // success - that hides a broken setup.
       console.error("[push] save failed", err);
       return { ok: false, reason: "save-failed", error: err };
     }
@@ -168,7 +168,7 @@ export async function disablePush() {
     if (sub) {
       const endpoint = sub.endpoint;
       await sub.unsubscribe();
-      await supabase.rpc("unregister_push_subscription", { p_endpoint: endpoint });
+      await api("/push/unsubscribe", { method: "POST", body: { endpoint } });
     }
   } catch (err) {
     console.error("[push] disable failed", err);
@@ -190,17 +190,10 @@ export async function isPushEnabled() {
 
 async function saveSubscription(sub) {
   const json = sub.toJSON();
-  // Write through a SECURITY DEFINER function: the push_subscriptions table is
-  // fully private (no client RLS policies), so the only way in is this RPC,
-  // which runs as the table owner and bypasses RLS.
-  const { error } = await supabase.rpc("register_push_subscription", {
-    p_endpoint: sub.endpoint,
-    p_p256dh: json.keys?.p256dh,
-    p_auth: json.keys?.auth,
-    p_course_codes: takenCodes(),
-    p_user_agent: navigator.userAgent,
+  await api("/push/subscribe", {
+    method: "POST",
+    body: { endpoint: sub.endpoint, keys: json.keys, courses: takenCodes() },
   });
-  if (error) throw error;
 }
 
 // Keep the stored course list current so the device is only pushed for courses

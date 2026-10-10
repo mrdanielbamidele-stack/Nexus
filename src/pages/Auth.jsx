@@ -1,40 +1,24 @@
-import { useState, useMemo, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router";
-import { courseCatalog } from "../data/courseCatalog";
-import { studentRegistry } from "../data/studentRegistry";
-import { setStudent } from "../lib/studentAuth";
-import "./Auth.css";
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router'
+import { api } from '../lib/api'
+import { refreshSession, useSession } from '../lib/session'
+import { courseCatalog } from '../data/courseCatalog'
+import {
+  EXAMPLE_STAFF_EMAIL, EXAMPLE_STUDENT_EMAIL,
+  checkSchoolEmail, emailProblem, passwordProblem, roleProblem, usernameProblem,
+} from '../lib/schoolEmail'
 import ScrollToTop from '../components/ScrollToTop'
+import UiIcon from '../components/UiIcon'
+import ShowPassword from '../assets/showpassword.svg'
+import HidePassword from '../assets/hidepassword.svg'
+import './Auth.css'
 
-const DEMO_EMAIL = "202500062@topfaith.edu.ng";
+/* -------------------------------- helpers --------------------------------- */
 
-/* ------------------------------- helpers -------------------------------- */
-
-function coursesFor(courseOS, level) {
-  return courseCatalog[courseOS]?.[level] || [];
-}
-
-// Flat, de-duped list of every course across all programmes/levels.
-function allCourses() {
-  const map = new Map();
-  for (const programme of Object.values(courseCatalog)) {
-    for (const list of Object.values(programme)) {
-      for (const c of list) if (!map.has(c.code)) map.set(c.code, c);
-    }
-  }
-  return [...map.values()].sort((a, b) => a.code.localeCompare(b.code));
-}
-
-// "TUM-CSC 112" -> "Tum-Csc 112"  (matches the look in the mock-up)
-function prettyCode(code) {
-  return code.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function hasEmoji(str) {
-  return /\p{Extended_Pictographic}/u.test(str);
-}
-
-/* -------------------------------- icons --------------------------------- */
+const programmes = Object.keys(courseCatalog)
+const programmeOptions = programmes.map(p => ({ value: p, label: p }))
+const levelsOf = programme => Object.keys(courseCatalog[programme] || {})
+const levelLabel = level => (/^\d+$/.test(level) ? `${level} level` : level)
 
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
@@ -43,414 +27,768 @@ const GoogleIcon = () => (
     <path fill="#4CAF50" d="M24 43.5c5.2 0 9.7-2 13.1-5.2l-6.1-5c-1.9 1.4-4.3 2.2-7 2.2-5.3 0-9.7-3.1-11.3-7.5l-6.5 5C9.6 39 16.2 43.5 24 43.5z" />
     <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.1-2.2 4-4.2 5.3l6.1 5C40.9 36 43.5 30.6 43.5 24c0-1.2-.1-2.3-.4-3.5z" />
   </svg>
-);
+)
 
-const GithubIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    <path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.09.68-.22.68-.49l-.01-1.7c-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.89 1.57 2.34 1.12 2.91.86.09-.66.35-1.12.63-1.38-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.7 0 0 .84-.28 2.75 1.05A9.36 9.36 0 0 1 12 6.84c.85 0 1.71.12 2.51.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.4.2 2.44.1 2.7.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9l-.01 2.81c0 .27.18.59.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2z" />
-  </svg>
-);
+// `plain` swaps the <label> for a <div>: a click on an option inside a <label>
+// would be passed on to the input and reopen the list that was just closed.
+function Field({ label, hint, plain = false, children }) {
+  const Tag = plain ? 'div' : 'label'
+  return (
+    <Tag className="auth-field">
+      <span className="auth-field-label">{label}</span>
+      {children}
+      {hint && <span className="auth-field-hint">{hint}</span>}
+    </Tag>
+  )
+}
 
-const KeyIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <circle cx="8" cy="15" r="4.5" stroke="currentColor" strokeWidth="1.6" />
-    <path d="M11 13l8-8M16 5l2 2M19 8l1.5-1.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-  </svg>
-);
+// Wrap the part of `text` that matches `query` in <mark>.
+function highlight(text, query) {
+  const q = query.trim().toLowerCase()
+  const at = q ? text.toLowerCase().indexOf(q) : -1
+  if (at < 0) return text
+  return (
+    <>
+      {text.slice(0, at)}
+      <mark>{text.slice(at, at + q.length)}</mark>
+      {text.slice(at + q.length)}
+    </>
+  )
+}
 
-const MailIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
-    <path d="M4 7l8 6 8-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-  </svg>
-);
+// Pick from a list or type to narrow it. The whole list shows on focus; typing
+// keeps only what matches, best matches first. Arrows, Enter and Esc work as in
+// any menu. `options` are { value, label }.
+function Combobox({ label, options, value, onChange, placeholder, disabled = false }) {
+  const listId = useId()
+  const wrapRef = useRef(null)
+  const inputRef = useRef(null)
+  const [query, setQuery] = useState(null) // null = not typing: show the chosen option
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(-1) // -1 = nothing highlighted yet
 
-/* -------------------------------- page ---------------------------------- */
+  const chosen = options.find(o => o.value === value)
+  const typed = query !== null
+  const shown = typed ? query : (chosen?.label ?? '')
 
-export default function Auth() {
-  const [params] = useSearchParams();
-  const next = params.get("next") || "/";
-  const navigate = useNavigate();
+  const matches = useMemo(() => {
+    const q = (query ?? '').trim().toLowerCase()
+    if (!q) return options
+    const starts = o => Number(o.label.toLowerCase().startsWith(q))
+    return options
+      .filter(o => o.label.toLowerCase().includes(q))
+      .sort((a, b) => starts(b) - starts(a))
+  }, [options, query])
 
-  const [mode, setMode] = useState("signup"); // 'signup' | 'login'  -signup is the default
-  const [step, setStep] = useState("form"); // 'form' | 'oauth' | 'onboarding'
-
+  // Keep the highlighted option in view while arrowing through a long list.
   useEffect(() => {
-    document.title = "Sign in - Nexus";
-  }, []);
+    if (!open) return
+    wrapRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
+  }, [active, open])
 
-  function chooseAccount() {
-    if (mode === "login") {
-      // Login skips onboarding entirely: fixed username + 100L Computer Science.
-      setStudent({
-        regNumber: DEMO_EMAIL.split("@")[0],
-        username: "Dele",
-        courseOS: "Computer Science",
-        level: "100",
-        courses: coursesFor("Computer Science", "100").map((c) => c.code),
-      });
-      navigate(next, { replace: true });
-    } else {
-      setStep("onboarding");
+  function choose(option) {
+    onChange(option.value)
+    setQuery(null)
+    setOpen(false)
+  }
+
+  function onInput(e) {
+    setQuery(e.target.value)
+    if (value) onChange('') // typing again un-picks the option
+    setActive(0)
+    setOpen(true)
+  }
+
+  function onKeyDown(e) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setOpen(true)
+      setActive(i => Math.min(i + 1, matches.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActive(i => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter' && open && matches[active]) {
+      e.preventDefault() // pick it, don't submit the form
+      choose(matches[active])
+    } else if (e.key === 'Escape') {
+      setOpen(false)
+      setQuery(null)
     }
   }
 
-  function finishSignup(student) {
-    setStudent(student);
-    navigate(next, { replace: true });
+  // Leaving mid-word: take the option if exactly one fits, otherwise go back to
+  // what was chosen so the box never shows text that isn't really selected.
+  function onBlur(e) {
+    if (wrapRef.current?.contains(e.relatedTarget)) return
+    setOpen(false)
+    if (!typed) return
+    const said = query.trim().toLowerCase()
+    const exact = matches.length === 1
+      ? matches[0]
+      : options.find(o => o.label.toLowerCase() === said)
+    if (exact) choose(exact)
+    else setQuery(null)
+  }
+
+  function toggle(e) {
+    e.preventDefault() // keep focus where it is
+    if (disabled) return
+    if (open) {
+      setOpen(false)
+    } else {
+      inputRef.current?.focus()
+      setOpen(true)
+    }
+  }
+
+  return (
+    <div className={`auth-combo${open ? ' is-open' : ''}`} ref={wrapRef} onBlur={onBlur}>
+      <span className={`auth-input${disabled ? ' is-disabled' : ''}`}>
+        <input
+          ref={inputRef}
+          type="text"
+          role="combobox"
+          aria-label={label}
+          aria-expanded={open}
+          aria-controls={open ? listId : undefined}
+          aria-activedescendant={open && matches[active] ? `${listId}-${active}` : undefined}
+          aria-autocomplete="list"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={placeholder}
+          disabled={disabled}
+          value={shown}
+          onChange={onInput}
+          onFocus={e => {
+            setOpen(true)
+            setActive(matches.findIndex(o => o.value === value))
+            if (!typed) e.target.select()
+          }}
+          onKeyDown={onKeyDown}
+        />
+        <span className="auth-combo-chevron" aria-hidden="true" onMouseDown={toggle}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </span>
+      </span>
+
+      {open && (
+        <ul className="auth-combo-list" id={listId} role="listbox" aria-label={label}>
+          {matches.length ? matches.map((option, i) => (
+            <li
+              key={option.value}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={i === active}
+              className={option.value === value ? 'chosen' : ''}
+              onMouseDown={e => e.preventDefault()}
+              onMouseEnter={() => setActive(i)}
+              onClick={() => choose(option)}
+            >
+              <span>{typed ? highlight(option.label, query) : option.label}</span>
+              {option.value === value && <UiIcon name="check" size={16} />}
+            </li>
+          )) : (
+            <li className="auth-combo-empty" role="option" aria-selected="false">
+              Nothing matches &ldquo;{query.trim()}&rdquo;. Clear the box to see every option.
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function PasswordInput({ value, onChange, autoComplete, placeholder }) {
+  const [shown, setShown] = useState(false)
+  return (
+    <span className="auth-input">
+      <input
+        type={shown ? 'text' : 'password'}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        autoComplete={autoComplete}
+        placeholder={placeholder}
+      />
+      <button
+        type="button"
+        className="auth-eye"
+        onClick={() => setShown(s => !s)}
+        aria-label={shown ? 'Hide password' : 'Show password'}
+      >
+        <img src={shown ? HidePassword : ShowPassword} alt="" width="18" height="18" />
+      </button>
+    </span>
+  )
+}
+
+function Problem({ error, children }) {
+  if (!error) return null
+  return (
+    <div className="auth-alert" role="alert">
+      <p>{error.message}</p>
+      {children}
+    </div>
+  )
+}
+
+// The Sign in / Sign up switch at the top of the card. The violet thumb slides
+// between the two halves (see data-active in Auth.css).
+function ModeSwitch({ value, onChange }) {
+  return (
+    <div className="auth-tabs" role="tablist" aria-label="Sign in or sign up" data-active={value}>
+      <span className="auth-tab-thumb" aria-hidden="true" />
+      <button
+        type="button"
+        role="tab"
+        className="auth-tab"
+        aria-selected={value === 'login'}
+        onClick={() => onChange('login')}
+      >
+        Sign in
+      </button>
+      <button
+        type="button"
+        role="tab"
+        className="auth-tab"
+        aria-selected={value === 'signup'}
+        onClick={() => onChange('signup')}
+      >
+        Sign up
+      </button>
+    </div>
+  )
+}
+
+const startGoogle = (purpose, role) => {
+  window.location.assign(`/api/auth/google/start?purpose=${purpose}&role=${role}`)
+}
+
+/* --------------------------------- page ----------------------------------- */
+
+// One screen for both kinds of account: <Auth /> is the student's /auth page,
+// <Auth role="admin" /> is what /admin shows until staff are signed in.
+export default function Auth({ role = 'student', onSignedIn }) {
+  const isAdmin = role === 'admin'
+  const navigate = useNavigate()
+  const session = useSession()
+  const [params, setParams] = useSearchParams()
+  const next = params.get('next') || '/'
+
+  const [view, setView] = useState(() => {
+    if (params.get('step') === 'reset') return 'reset'
+    if (session.pending?.role === role) return 'verify'
+    return isAdmin ? 'login' : 'signup'
+  })
+  const [email, setEmail] = useState(() => (session.pending?.role === role ? session.pending.email : ''))
+  const [notice, setNotice] = useState(() => params.get('error'))
+
+  useEffect(() => {
+    document.title = isAdmin ? 'Admin sign in - Nexus' : 'Sign in - Nexus'
+  }, [isAdmin])
+
+  // The server redirects back here with ?error=... when Google didn't work out.
+  // Show it once, then tidy the address bar.
+  useEffect(() => {
+    if (params.has('error') || params.has('step')) {
+      const clean = new URLSearchParams(params)
+      clean.delete('error')
+      clean.delete('step')
+      setParams(clean, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function signedIn() {
+    await refreshSession()
+    if (onSignedIn) onSignedIn()
+    else navigate(next, { replace: true })
+  }
+
+  function goVerify(address) {
+    setEmail(address)
+    setNotice(null)
+    setView('verify')
   }
 
   return (
     <div className="auth-root">
       <ScrollToTop />
-      {/* Image collage background */}
       <div className="auth-collage" aria-hidden="true">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
           <div key={n} className="auth-collage-item">
             <img src={`/logimgs/pic${n}.jpg`} alt="" />
           </div>
         ))}
       </div>
+      {/* Tints the photos so the card is what you read, not the collage */}
+      <div className="auth-scrim" aria-hidden="true" />
 
-      <div className="auth-fakebanner">
-        ⚠ Demo mode -this is a <b>demo OAuth</b> flow (simulated Google sign-in)
+      <div className="auth-card">
+        <div className="auth-brand">
+          <span className="auth-brand-badge">N</span>
+          <span className="auth-brand-name">Nexus</span>
+        </div>
+
+        {(view === 'login' || view === 'signup') && (
+          <ModeSwitch
+            value={view}
+            onChange={next => { setNotice(null); setView(next) }}
+          />
+        )}
+
+        {notice && (
+          <div className="auth-alert" role="alert">
+            <p>{notice}</p>
+          </div>
+        )}
+
+        {/* Keyed by view so each screen eases in when the switch is used */}
+        <div className="auth-view" key={view}>
+          {view === 'signup' && (
+            <SignupForm
+              role={role}
+              email={email}
+              setEmail={setEmail}
+              onVerify={goVerify}
+              onLogin={() => { setNotice(null); setView('login') }}
+            />
+          )}
+
+          {view === 'login' && (
+            <LoginForm
+              role={role}
+              email={email}
+              setEmail={setEmail}
+              onSignedIn={signedIn}
+              onVerify={goVerify}
+              onSignup={() => { setNotice(null); setView('signup') }}
+              onForgot={() => { setNotice(null); setView('forgot') }}
+            />
+          )}
+
+          {view === 'forgot' && (
+            <ForgotForm
+              role={role}
+              email={email}
+              setEmail={setEmail}
+              onBack={() => setView('login')}
+              onSignup={() => setView('signup')}
+            />
+          )}
+
+          {view === 'verify' && (
+            <VerifyCard
+              role={role}
+              email={email}
+              onStartOver={() => { setNotice(null); setView('signup') }}
+            />
+          )}
+
+          {view === 'reset' && <ResetForm onDone={signedIn} />}
+        </div>
+
+        <p className="auth-footer">
+          {isAdmin ? (
+            <>Not staff? <Link to="/auth">Student Login</Link></>
+          ) : (
+            <>Not a student? <Link to="/admin">Staff Login</Link></>
+          )}
+        </p>
       </div>
-
-      {step === "form" && (
-        <AuthForm mode={mode} setMode={setMode} onContinue={() => setStep("oauth")} />
-      )}
-      {step === "oauth" && (
-        <OAuthChooser onChoose={chooseAccount} />
-      )}
-      {step === "onboarding" && (
-        <Onboarding email={DEMO_EMAIL} onFinish={finishSignup} />
-      )}
     </div>
-  );
+  )
 }
 
-/* ----------------------------- step: form ------------------------------- */
+/* ------------------------------- sign up ---------------------------------- */
 
-function AuthForm({ mode, setMode, onContinue }) {
+function SignupForm({ role, email, setEmail, onVerify, onLogin }) {
+  const isAdmin = role === 'admin'
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [programme, setProgramme] = useState('')
+  const [level, setLevel] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  // A question the server wants answered before it will go on.
+  const [ask, setAsk] = useState(null) // 'staff' | 'overwrite' | null
 
-  const isSignup = mode === "signup";
+  const levelOptions = useMemo(
+    () => levelsOf(programme).map(l => ({ value: l, label: levelLabel(l) })),
+    [programme]
+  )
 
-  // "Trouble logging in?" complaint box (login only)
-  const [complaintOpen, setComplaintOpen] = useState(false);
-  const [complaintText, setComplaintText] = useState("");
-  const [complaintDone, setComplaintDone] = useState(false);
+  async function submit(extra = {}) {
+    setError(null)
+    setAsk(null)
 
-  // "Something wrong? Report it" box (signup only)
-  const [reportOpen, setReportOpen] = useState(false);
-  const [reportText, setReportText] = useState("");
-  const [reportDone, setReportDone] = useState(false);
+    const checked = checkSchoolEmail(email)
+    if (!checked.ok) return setError({ message: emailProblem(checked.reason) })
+
+    const mismatch = roleProblem(role, checked.kind)
+    if (mismatch) return setError({ message: mismatch, code: 'STUDENT_EMAIL_ON_ADMIN' })
+
+    const problem = usernameProblem(username) || passwordProblem(password)
+    if (problem) return setError({ message: problem })
+
+    if (!isAdmin && !programme) return setError({ message: 'Choose your course of study.' })
+    if (!isAdmin && !level) return setError({ message: 'Choose your level.' })
+
+    setBusy(true)
+    try {
+      await api('/auth/signup', {
+        method: 'POST',
+        body: { role, email, password, username, programme, level, ...extra },
+      })
+      await refreshSession()
+      onVerify(checked.email)
+    } catch (err) {
+      if (err.code === 'CONFIRM_STAFF_AS_STUDENT') setAsk({ kind: 'staff', message: err.message })
+      else if (err.code === 'UNVERIFIED_EXISTS') setAsk({ kind: 'overwrite', message: err.message })
+      else setError(err)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
-    <div className="auth-card">
-      <div className="auth-brand">
-        <span className="auth-brand-badge">N</span>
-        <span className="auth-brand-name">Nexus</span>
-      </div>
+    <form onSubmit={e => { e.preventDefault(); submit() }} noValidate>
+      <h1 className="auth-title">{isAdmin ? 'Create an admin account' : 'Create your account'}</h1>
 
-      <h1 className="auth-title">{isSignup ? "Sign up for Nexus" : "Log in"}</h1>
+      <Field label={isAdmin ? 'Your name' : 'Username'} hint={isAdmin ? 'This is how your name appears on Nexus.' : 'A nickname - no emojis.'}>
+        <span className="auth-input">
+          <input
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            placeholder={isAdmin ? 'e.g. Dr. Bamididele' : 'Pick a username'}
+            autoComplete={isAdmin ? 'name' : 'nickname'}
+          />
+        </span>
+      </Field>
 
-      <button type="button" className="auth-google" onClick={onContinue}>
+      <Field
+        label="School email"
+        hint={(
+          <>
+            Your @topfaith.edu.ng address
+            <span className="auth-hint-eg">, like {isAdmin ? EXAMPLE_STAFF_EMAIL : EXAMPLE_STUDENT_EMAIL}</span>.
+          </>
+        )}
+      >
+        <span className="auth-input">
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder={isAdmin ? EXAMPLE_STAFF_EMAIL : EXAMPLE_STUDENT_EMAIL}
+            autoComplete="email"
+            inputMode="email"
+          />
+        </span>
+      </Field>
+
+      <Field label="Password" hint="At least 8 characters.">
+        <PasswordInput value={password} onChange={setPassword} autoComplete="new-password" placeholder="Choose a password" />
+      </Field>
+
+      {!isAdmin && (
+        <>
+          <Field label="Course of study" plain>
+            <Combobox
+              label="Course of study"
+              options={programmeOptions}
+              value={programme}
+              onChange={next => { setProgramme(next); setLevel('') }}
+              placeholder="Type or pick your course"
+            />
+          </Field>
+
+          <Field label="Level" plain>
+            <Combobox
+              label="Level"
+              options={levelOptions}
+              value={level}
+              onChange={setLevel}
+              placeholder={programme ? 'Pick your level' : 'Choose a course first'}
+              disabled={!programme}
+            />
+          </Field>
+        </>
+      )}
+
+      <Problem error={error}>
+        {error?.code === 'ACCOUNT_EXISTS' && (
+          <button type="button" className="auth-link" onClick={onLogin}>Go to sign in</button>
+        )}
+        {error?.code === 'STUDENT_EMAIL_ON_ADMIN' && (
+          <Link className="auth-link" to="/auth">Sign up as a student</Link>
+        )}
+      </Problem>
+
+      {ask && (
+        <div className="auth-confirm" role="alertdialog">
+          <p>{ask.message}</p>
+          <div className="auth-confirm-actions">
+            {ask.kind === 'staff' ? (
+              <>
+                <button type="button" className="auth-btn" disabled={busy} onClick={() => submit({ confirmStaffAsStudent: true })}>
+                  Yes, make me a student
+                </button>
+                <Link className="auth-btn ghost" to="/admin">No, I want an admin account</Link>
+              </>
+            ) : (
+              <>
+                <button type="button" className="auth-btn" disabled={busy} onClick={() => submit({ overwrite: true })}>
+                  Yes, replace the old details
+                </button>
+                <button type="button" className="auth-btn ghost" onClick={() => setAsk(null)}>
+                  No, keep editing
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <button type="submit" className="auth-submit" disabled={busy || Boolean(ask)}>
+        {busy ? 'Creating your account…' : 'Create account'}
+      </button>
+    </form>
+  )
+}
+
+/* -------------------------------- sign in --------------------------------- */
+
+function LoginForm({ role, email, setEmail, onSignedIn, onVerify, onSignup, onForgot }) {
+  const isAdmin = role === 'admin'
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function submit(e) {
+    e.preventDefault()
+    setError(null)
+
+    const checked = checkSchoolEmail(email)
+    if (!checked.ok) return setError({ message: emailProblem(checked.reason) })
+    const mismatch = roleProblem(role, checked.kind)
+    if (mismatch) return setError({ message: mismatch, code: 'STUDENT_EMAIL_ON_ADMIN' })
+    if (!password) return setError({ message: 'Enter your password.' })
+
+    setBusy(true)
+    try {
+      const result = await api('/auth/login', { method: 'POST', body: { role, email, password } })
+      if (result.next === 'verify') {
+        await refreshSession()
+        onVerify(checked.email)
+      } else {
+        await onSignedIn()
+      }
+    } catch (err) {
+      setError(err)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const code = error?.code
+  const noAccount = code === 'NO_ACCOUNT' || code === 'NO_STUDENT_ACCOUNT' || code === 'NO_ADMIN_ACCOUNT'
+
+  return (
+    <form onSubmit={submit} noValidate>
+      <h1 className="auth-title">{isAdmin ? 'Admin sign in' : 'Welcome back'}</h1>
+
+      <button type="button" className="auth-google" onClick={() => startGoogle('login', role)}>
         <GoogleIcon /> Continue with Google
       </button>
 
-      
+      <div className="auth-or"><span>or use your password</span></div>
 
-      {isSignup ? (
-        <>
-          {/* Something wrong? Report it */}
-          {reportDone ? (
-            <p className="onb-report-done" style={{ marginTop: 16 }}>
-              Sorry for the inconvenience -we&rsquo;ve received your report and it will be resolved soon.
-            </p>
-          ) : reportOpen ? (
-            <div className="onb-report" style={{ marginTop: 16 }}>
-              <textarea
-                className="onb-report-text"
-                rows={3}
-                placeholder="Tell us what's wrong…"
-                value={reportText}
-                onChange={(e) => setReportText(e.target.value)}
-              />
-              <div className="onb-report-actions">
-                <button type="button" className="onb-report-cancel" onClick={() => setReportOpen(false)}>Cancel</button>
-                <button
-                  type="button"
-                  className="onb-report-send"
-                  onClick={() => reportText.trim() && setReportDone(true)}
-                >
-                  Submit report
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ textAlign: "center" }}>
-              <button type="button" className="onb-report-link" onClick={() => setReportOpen(true)}>
-                Something wrong? Report it
-              </button>
-            </div>
-          )}
-
-          <p className="auth-fineprint">
-            By registering, you agree to our <a href="#" onClick={(e) => e.preventDefault()}>Terms of Use</a> &amp;{" "}
-            <a href="#" onClick={(e) => e.preventDefault()}>Privacy Policy</a>
-          </p>
-        </>
-      ) : complaintDone ? (
-        <p className="onb-report-done" style={{ marginTop: 16 }}>
-          Sorry for the inconvenience -we&rsquo;ve received your complaint and it will be resolved soon.
-        </p>
-      ) : complaintOpen ? (
-        <div className="onb-report" style={{ marginTop: 16 }}>
-          <textarea
-            className="onb-report-text"
-            rows={3}
-            placeholder="Tell us what went wrong logging in…"
-            value={complaintText}
-            onChange={(e) => setComplaintText(e.target.value)}
+      <Field label="School email">
+        <span className="auth-input">
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder={isAdmin ? EXAMPLE_STAFF_EMAIL : EXAMPLE_STUDENT_EMAIL}
+            autoComplete="email"
+            inputMode="email"
           />
-          <div className="onb-report-actions">
-            <button type="button" className="onb-report-cancel" onClick={() => setComplaintOpen(false)}>Cancel</button>
-            <button
-              type="button"
-              className="onb-report-send"
-              onClick={() => complaintText.trim() && setComplaintDone(true)}
-            >
-              Submit complaint
-            </button>
-          </div>
-        </div>
-      ) : (
-        <p className="auth-fineprint">
-          Trouble logging in?{" "}
-          <button type="button" className="auth-link" onClick={() => setComplaintOpen(true)}>
-            Make a complaint
+        </span>
+      </Field>
+
+      <Field label="Password">
+        <PasswordInput value={password} onChange={setPassword} autoComplete="current-password" placeholder="Your password" />
+      </Field>
+
+      <div className="auth-aside">
+        <button type="button" className="auth-link" onClick={onForgot}>Forgot password?</button>
+      </div>
+
+      <Problem error={error}>
+        {noAccount && (
+          <button type="button" className="auth-link" onClick={onSignup}>
+            Create {isAdmin ? 'an admin' : 'a student'} account
           </button>
-        </p>
-      )}
+        )}
+        {code === 'NO_STUDENT_ACCOUNT' && (
+          <Link className="auth-link" to="/admin">Go to the admin sign in</Link>
+        )}
+        {(code === 'NO_ADMIN_ACCOUNT' || code === 'STUDENT_EMAIL_ON_ADMIN') && (
+          <Link className="auth-link" to="/auth">Go to the student sign in</Link>
+        )}
+        {code === 'WRONG_PASSWORD' && (
+          <button type="button" className="auth-link" onClick={onForgot}>Forgot password?</button>
+        )}
+      </Problem>
+
+      <button type="submit" className="auth-submit" disabled={busy}>
+        {busy ? 'Signing in…' : 'Sign in'}
+      </button>
+    </form>
+  )
+}
+
+/* ----------------------------- forgot password ---------------------------- */
+
+function ForgotForm({ role, email, setEmail, onBack, onSignup }) {
+  const isAdmin = role === 'admin'
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function submit(e) {
+    e.preventDefault()
+    setError(null)
+
+    const checked = checkSchoolEmail(email)
+    if (!checked.ok) return setError({ message: emailProblem(checked.reason) })
+    const mismatch = roleProblem(role, checked.kind)
+    if (mismatch) return setError({ message: mismatch, code: 'STUDENT_EMAIL_ON_ADMIN' })
+
+    setBusy(true)
+    try {
+      const { url } = await api('/auth/forgot', { method: 'POST', body: { role, email } })
+      window.location.assign(url) // on to Google, which proves the email is theirs
+    } catch (err) {
+      setError(err)
+      setBusy(false)
+    }
+  }
+
+  const code = error?.code
+  const noAccount = code === 'NO_ACCOUNT' || code === 'NO_STUDENT_ACCOUNT' || code === 'NO_ADMIN_ACCOUNT'
+
+  return (
+    <form onSubmit={submit} noValidate>
+      <h1 className="auth-title">Reset your password</h1>
+      <p className="auth-lead">
+        Enter your school email. You'll confirm it's you with Google, then choose a new password.
+      </p>
+
+      <Field label="School email">
+        <span className="auth-input">
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder={isAdmin ? EXAMPLE_STAFF_EMAIL : EXAMPLE_STUDENT_EMAIL}
+            autoComplete="email"
+            inputMode="email"
+          />
+        </span>
+      </Field>
+
+      <Problem error={error}>
+        {noAccount && (
+          <button type="button" className="auth-link" onClick={onSignup}>
+            Create {isAdmin ? 'an admin' : 'a student'} account
+          </button>
+        )}
+      </Problem>
+
+      <button type="submit" className="auth-google" disabled={busy}>
+        <GoogleIcon /> {busy ? 'Opening Google…' : 'Continue with Google'}
+      </button>
 
       <p className="auth-switch">
-        {isSignup ? "Already have an account? " : "Don't have an account? "}
-        <button type="button" className="auth-link" onClick={() => setMode(isSignup ? "login" : "signup")}>
-          {isSignup ? "Log in" : "Sign up now"}
-        </button>
+        <button type="button" className="auth-link" onClick={onBack}>Back to sign in</button>
+      </p>
+    </form>
+  )
+}
+
+/* --------------------------- finish with Google --------------------------- */
+
+function VerifyCard({ role, email, onStartOver }) {
+  return (
+    <div>
+      <h1 className="auth-title">Confirm email</h1>
+      <p className="auth-lead">
+        Your account is created. One last step: continue with Google so we know{' '}
+        <strong>{email || 'your school email'}</strong> really is yours.
+      </p>
+
+      <button type="button" className="auth-google" onClick={() => startGoogle('verify', role)}>
+        <GoogleIcon /> Continue with Google
+      </button>
+
+      <p className="auth-fineprint">
+        Only @topfaith.edu.ng Google accounts work. You can finish this later, on any device:
+        just sign in with your school email and password and we'll bring you back here.
+      </p>
+
+      <p className="auth-switch">
+        Wrong email?{' '}
+        <button type="button" className="auth-link" onClick={onStartOver}>Start over</button>
       </p>
     </div>
-  );
+  )
 }
 
-/* -------------------------- step: oauth chooser ------------------------- */
+/* ----------------------------- choose password ---------------------------- */
 
-function OAuthChooser({ onChoose }) {
-  return (
-    <div className="goog-card">
-      <div className="goog-head">
-        <GoogleIcon /> <span>Sign in with Google</span>
-      </div>
+function ResetForm({ onDone }) {
+  const [password, setPassword] = useState('')
+  const [again, setAgain] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
 
-      <div className="goog-body">
-        <div className="auth-brand-badge">N</div>
-        <h2 className="goog-title">Choose an account</h2>
-        <p className="goog-sub">to continue to <span>Nexus</span></p>
+  async function submit(e) {
+    e.preventDefault()
+    setError(null)
 
-        <button type="button" className="goog-account" onClick={onChoose}>
-          <span className="goog-avatar">D</span>
-          <span className="goog-acc-text">
-            <span className="goog-acc-email">{DEMO_EMAIL}</span>
-          </span>
-        </button>
+    const problem = passwordProblem(password)
+    if (problem) return setError({ message: problem })
+    if (password !== again) return setError({ message: "The two passwords don't match. Type the same password in both boxes." })
 
-        <div className="goog-account goog-disabled" aria-disabled="true">
-          <span className="goog-avatar goog-avatar-grey">+</span>
-          <span className="goog-acc-text">
-            <span className="goog-acc-name">Use another account</span>
-            <span className="goog-acc-email">Disabled in this demo</span>
-          </span>
-        </div>
-
-        <p className="goog-footer">
-          This is a <b>demo Google sign-in</b> screen. No real account is used. Before using this app you
-          can review Nexus&rsquo;s <a href="#" onClick={(e) => e.preventDefault()}>Privacy Policy</a> and{" "}
-          <a href="#" onClick={(e) => e.preventDefault()}>Terms of Service</a>.
-        </p>
-      </div>
-
-    </div>
-  );
-}
-
-/* --------------------------- step: onboarding --------------------------- */
-
-function Onboarding({ email, onFinish }) {
-  const defaultReg = email.split("@")[0]; // 202500062
-  const [reg, setReg] = useState(defaultReg);
-  const [extra, setExtra] = useState([]); // course codes added on top of the base list
-  const [username, setUsername] = useState("");
-  const [error, setError] = useState("");
-
-  // course report widget
-  const [reportOpen, setReportOpen] = useState(false);
-  const [reportText, setReportText] = useState("");
-  const [reportDone, setReportDone] = useState(false);
-
-  const match = studentRegistry[reg.trim()];
-  const courseOS = match?.courseOS;
-  const level = match?.level;
-  const baseCodes = useMemo(
-    () => (match ? coursesFor(courseOS, level).map((c) => c.code) : []),
-    [match, courseOS, level]
-  );
-
-  const selectedCodes = useMemo(() => [...baseCodes, ...extra], [baseCodes, extra]);
-  const addable = useMemo(
-    () => allCourses().filter((c) => !selectedCodes.includes(c.code)),
-    [selectedCodes]
-  );
-
-  function addCourse(code) {
-    if (code && !selectedCodes.includes(code)) setExtra((x) => [...x, code]);
-  }
-
-  // Only courses the student added can be removed - programme courses are fixed.
-  function removeCourse(code) {
-    setExtra((x) => x.filter((c) => c !== code));
-  }
-
-  function submitReport() {
-    if (!reportText.trim()) return;
-    setReportDone(true);
-  }
-
-  function submit() {
-    setError("");
-    if (!match) return setError("We couldn't find that registration number. Please check it.");
-    if (!username.trim()) return setError("Please choose a username.");
-    if (hasEmoji(username)) return setError("Your username can't contain emojis.");
-    onFinish({
-      regNumber: reg.trim(),
-      username: username.trim(),
-      courseOS,
-      level,
-      courses: selectedCodes,
-    });
+    setBusy(true)
+    try {
+      await api('/auth/reset', { method: 'POST', body: { password } })
+      await onDone()
+    } catch (err) {
+      setError(err)
+      setBusy(false)
+    }
   }
 
   return (
-    <div className="onb-card">
-      <h1 className="onb-title">Finish setting up</h1>
-      <p className="onb-sub">We pulled your details from your school account. Confirm everything looks right.</p>
+    <form onSubmit={submit} noValidate>
+      <h1 className="auth-title">Choose a new password</h1>
+      <p className="auth-lead">Your email is confirmed. Pick a new password for your account.</p>
 
-      {/* Reg number */}
-      <label className="onb-label">Registration number</label>
-      <input
-        className="onb-field"
-        value={reg}
-        onChange={(e) => setReg(e.target.value)}
-        placeholder="e.g. 202500062"
-      />
+      <Field label="New password" hint="At least 8 characters.">
+        <PasswordInput value={password} onChange={setPassword} autoComplete="new-password" placeholder="New password" />
+      </Field>
+      <Field label="Type it again">
+        <PasswordInput value={again} onChange={setAgain} autoComplete="new-password" placeholder="Repeat the password" />
+      </Field>
 
-      {/* Mapped programme / level / courses */}
-      {match ? (
-        <div className="onb-result">
-          <div className="onb-pills">
-            <span className="pill pill-strong">{courseOS}</span>
-            <span className="pill pill-strong">{level} level</span>
-          </div>
-          <div className="onb-courses-label">Courses you&rsquo;re taking</div>
-          <div className="onb-pills">
-            {baseCodes.map((code) => (
-              <span key={code} className="pill pill-locked">{prettyCode(code)}</span>
-            ))}
-            {extra.map((code) => (
-              <span key={code} className="pill pill-added">
-                {prettyCode(code)}
-                <button
-                  type="button"
-                  className="pill-remove"
-                  aria-label={`Remove ${prettyCode(code)}`}
-                  onClick={() => removeCourse(code)}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
+      <Problem error={error} />
 
-          <AddCourse addable={addable} onAdd={addCourse} />
-
-          {!reportOpen && !reportDone && (
-            <button type="button" className="onb-report-link" onClick={() => setReportOpen(true)}>
-              Something wrong with these courses? Report it
-            </button>
-          )}
-
-          {reportOpen && !reportDone && (
-            <div className="onb-report">
-              <textarea
-                className="onb-report-text"
-                placeholder="Tell us what's wrong with your course list…"
-                value={reportText}
-                onChange={(e) => setReportText(e.target.value)}
-                rows={3}
-              />
-              <div className="onb-report-actions">
-                <button type="button" className="onb-report-cancel" onClick={() => setReportOpen(false)}>Cancel</button>
-                <button type="button" className="onb-report-send" onClick={submitReport}>Submit report</button>
-              </div>
-            </div>
-          )}
-
-          {reportDone && (
-            <p className="onb-report-done">
-              Sorry for the inconvenience -thanks for letting us know. This error will soon be resolved.
-            </p>
-          )}
-        </div>
-      ) : (
-        <p className="onb-nomatch">No student found for that registration number.</p>
-      )}
-
-      {/* Username */}
-      <label className="onb-label" style={{ marginTop: 22 }}>Username</label>
-      <input
-        className="onb-field"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        placeholder="Pick a username"
-      />
-      <p className="onb-hint">Your username is a nickname but no emojis.</p>
-
-      {error && <p className="onb-error">{error}</p>}
-
-      <button type="button" className="onb-submit" onClick={submit}>Continue</button>
-    </div>
-  );
-}
-
-function AddCourse({ addable, onAdd }) {
-  const [value, setValue] = useState("");
-  return (
-    <div className="onb-add">
-      <select
-        className="onb-add-select"
-        value={value}
-        onChange={(e) => {
-          onAdd(e.target.value);
-          setValue("");
-        }}
-      >
-        <option value="">+ Add a course…</option>
-        {addable.map((c) => (
-          <option key={c.code} value={c.code}>
-            {prettyCode(c.code)} -{c.title}
-          </option>
-        ))}
-      </select>
-      <span className="onb-add-note">Your programme courses are fixed. Any course you add can be removed with the × .</span>
-    </div>
-  );
+      <button type="submit" className="auth-submit" disabled={busy}>
+        {busy ? 'Saving…' : 'Save password and sign in'}
+      </button>
+    </form>
+  )
 }

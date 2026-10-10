@@ -16,12 +16,153 @@
   <meta name="apple-mobile-web-app-title" content="Nexus" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
+  <!-- Fraunces: the soft serif used for headlines on the upload page.
+       Plus Jakarta Sans: the sign in / sign up screens. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500..700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+
   <script src="https://kit.fontawesome.com/9797319810.js" crossorigin="anonymous"></script>
   <title>Nexus</title>
+
+  <!-- Boot placeholder: while the app works out who is signed in and which
+       papers exist, show a skeleton of the screen about to appear. Same
+       colours and timing as src/components/Skeleton.css. -->
+  <script>
+    (function () {
+      var path = location.pathname
+      var view = 'shell'
+      try {
+        var signedIn = !!localStorage.getItem('studentAuth')
+        if (path.indexOf('/delealone') === 0) view = 'owner'
+        else if (path.indexOf('/auth') === 0) view = 'auth'
+        else if (path.indexOf('/demo') === 0 || path.indexOf('/admin') === 0) view = 'shell'
+        else if (path.indexOf('/upload') === 0) view = signedIn ? 'shell' : 'page'
+        else if (!signedIn) view = 'auth' // anyone not signed in is sent to /auth
+      } catch (e) { /* storage blocked: show the app frame */ }
+      document.documentElement.setAttribute('data-boot', view)
+    })()
+  </script>
+  <style>
+    #boot { position: fixed; inset: 0; z-index: 1; overflow: hidden; background: #f9fafb; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    #boot .sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    #boot .bk {
+      display: block; max-width: 100%; border-radius: 8px;
+      background: linear-gradient(100deg, #ebe7f6 35%, #f8f6fd 50%, #ebe7f6 65%); background-size: 300% 100%;
+      animation: boot-shimmer 1.5s ease-in-out infinite;
+    }
+    @keyframes boot-shimmer { from { background-position: 100% 0 } to { background-position: 0 0 } }
+    @media (prefers-reduced-motion: reduce) { #boot .bk { animation: none } }
+
+    #boot .shell, #boot .auth, #boot .owner { display: none; height: 100%; }
+    html:not([data-boot]) #boot .shell, html[data-boot="shell"] #boot .shell, html[data-boot="page"] #boot .shell { display: flex; }
+    html[data-boot="auth"] #boot .auth { display: flex; }
+    html[data-boot="owner"] #boot .owner { display: block; }
+    html[data-boot="auth"] #boot, html[data-boot="owner"] #boot { background: transparent; }
+
+    /* app frame: sidebar + page */
+    #boot .side { width: 260px; flex: none; padding: 20px; background: #fff; border-right: 1px solid #e5e7eb; }
+    #boot .side .bk + .bk { margin-top: 10px; }
+    #boot .main { flex: 1; min-width: 0; padding: 32px; }
+    #boot .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 26px; }
+    #boot .card { padding: 16px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; }
+    #boot .card .bk + .bk { margin-top: 12px; }
+    html[data-boot="page"] #boot .side { display: none; }
+    html[data-boot="page"] #boot .main { max-width: 960px; margin: 0 auto; }
+    @media (max-width: 767px) {
+      #boot .side { display: none; }
+      #boot .main { padding: 70px 16px 24px; }
+    }
+
+    /* sign in: the violet-tinted backdrop and the white card */
+    #boot .auth {
+      align-items: center; justify-content: center; padding: 32px 16px;
+      background: linear-gradient(160deg, #241047, #2e1465 55%, #180a30);
+    }
+    #boot .panel { width: 100%; max-width: 460px; padding: 28px 32px 26px; background: #fff; border-radius: 24px; box-shadow: 0 32px 80px rgba(8, 4, 24, 0.5); }
+    #boot .panel .bk + .bk { margin-top: 14px; }
+    @media (max-width: 520px) { #boot .panel { padding: 24px 20px 22px; border-radius: 20px; } }
+
+    /* owner area */
+    #boot .owner { background: #f6f4fc; }
+    #boot .owner-top { display: flex; align-items: center; gap: 14px; padding: 12px 22px; background: #fff; border-bottom: 1px solid #e6e2f3; }
+    #boot .owner-main { max-width: 1180px; margin: 0 auto; padding: 26px 22px; }
+    #boot .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; margin-top: 22px; }
+    #boot .tile { padding: 16px 18px; background: #fff; border: 1px solid #e6e2f3; border-radius: 14px; }
+    #boot .tile .bk + .bk { margin-top: 9px; }
+  </style>
 </head>
 
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <!-- Replaced by the app as soon as it knows who is signed in -->
+    <div id="boot" role="status" aria-live="polite" aria-busy="true">
+      <span class="sr">Loading Nexus</span>
+
+      <!-- the app frame: sidebar + a page of course cards -->
+      <div class="shell" aria-hidden="true">
+        <aside class="side">
+          <span class="bk" style="width:120px;height:32px"></span>
+          <span class="bk" style="height:38px;margin-top:28px"></span>
+          <span class="bk" style="height:38px"></span>
+          <span class="bk" style="height:38px"></span>
+          <span class="bk" style="height:38px"></span>
+          <span class="bk" style="height:38px"></span>
+        </aside>
+        <main class="main">
+          <span class="bk" style="width:220px;height:30px"></span>
+          <span class="bk" style="width:300px;height:14px;margin-top:10px"></span>
+          <span class="bk" style="height:132px;margin-top:22px;border-radius:16px"></span>
+          <div class="grid">
+            <div class="card"><span class="bk" style="width:74px;height:16px"></span><span class="bk" style="width:82%;height:14px"></span><span class="bk" style="width:48%;height:12px"></span><span class="bk" style="height:38px"></span></div>
+            <div class="card"><span class="bk" style="width:74px;height:16px"></span><span class="bk" style="width:82%;height:14px"></span><span class="bk" style="width:48%;height:12px"></span><span class="bk" style="height:38px"></span></div>
+            <div class="card"><span class="bk" style="width:74px;height:16px"></span><span class="bk" style="width:82%;height:14px"></span><span class="bk" style="width:48%;height:12px"></span><span class="bk" style="height:38px"></span></div>
+            <div class="card"><span class="bk" style="width:74px;height:16px"></span><span class="bk" style="width:82%;height:14px"></span><span class="bk" style="width:48%;height:12px"></span><span class="bk" style="height:38px"></span></div>
+            <div class="card"><span class="bk" style="width:74px;height:16px"></span><span class="bk" style="width:82%;height:14px"></span><span class="bk" style="width:48%;height:12px"></span><span class="bk" style="height:38px"></span></div>
+            <div class="card"><span class="bk" style="width:74px;height:16px"></span><span class="bk" style="width:82%;height:14px"></span><span class="bk" style="width:48%;height:12px"></span><span class="bk" style="height:38px"></span></div>
+          </div>
+        </main>
+      </div>
+
+      <!-- sign in / sign up -->
+      <div class="auth" aria-hidden="true">
+        <div class="panel">
+          <span class="bk" style="width:130px;height:36px;margin:0 auto"></span>
+          <span class="bk" style="height:52px;margin-top:22px;border-radius:14px"></span>
+          <span class="bk" style="width:62%;height:30px;margin-top:26px"></span>
+          <span class="bk" style="width:80px;height:13px;margin-top:22px"></span>
+          <span class="bk" style="height:50px;margin-top:8px;border-radius:12px"></span>
+          <span class="bk" style="width:96px;height:13px;margin-top:20px"></span>
+          <span class="bk" style="height:50px;margin-top:8px;border-radius:12px"></span>
+          <span class="bk" style="width:70px;height:13px;margin-top:20px"></span>
+          <span class="bk" style="height:50px;margin-top:8px;border-radius:12px"></span>
+          <span class="bk" style="height:52px;margin-top:26px;border-radius:12px"></span>
+        </div>
+      </div>
+
+      <!-- the owner's control room -->
+      <div class="owner" aria-hidden="true">
+        <div class="owner-top">
+          <span class="bk" style="width:30px;height:30px;border-radius:9px"></span>
+          <span class="bk" style="width:110px;height:16px"></span>
+          <span class="bk" style="width:72px;height:30px;border-radius:9px;margin-left:12px"></span>
+          <span class="bk" style="width:72px;height:30px;border-radius:9px"></span>
+          <span class="bk" style="width:72px;height:30px;border-radius:9px"></span>
+        </div>
+        <div class="owner-main">
+          <span class="bk" style="width:150px;height:30px"></span>
+          <div class="tiles">
+            <div class="tile"><span class="bk" style="width:46%;height:28px"></span><span class="bk" style="width:72%;height:13px"></span></div>
+            <div class="tile"><span class="bk" style="width:46%;height:28px"></span><span class="bk" style="width:72%;height:13px"></span></div>
+            <div class="tile"><span class="bk" style="width:46%;height:28px"></span><span class="bk" style="width:72%;height:13px"></span></div>
+            <div class="tile"><span class="bk" style="width:46%;height:28px"></span><span class="bk" style="width:72%;height:13px"></span></div>
+            <div class="tile"><span class="bk" style="width:46%;height:28px"></span><span class="bk" style="width:72%;height:13px"></span></div>
+            <div class="tile"><span class="bk" style="width:46%;height:28px"></span><span class="bk" style="width:72%;height:13px"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 

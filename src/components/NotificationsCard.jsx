@@ -5,6 +5,7 @@
 // reach phones, not just laptops.
 
 import { useEffect, useState } from "react";
+import UiIcon from "./UiIcon";
 import {
   pushSupported,
   isPushEnabled,
@@ -17,7 +18,9 @@ import {
   INSTALLABLE_EVENT,
 } from "../lib/push";
 
-export default function NotificationsCard() {
+// `hideTitle` drops the heading when the page already shows one (Settings
+// section view); the explainer line stays.
+export default function NotificationsCard({ hideTitle = false }) {
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null); // { type: 'ok'|'warn'|'err', text }
@@ -79,13 +82,15 @@ export default function NotificationsCard() {
 
   return (
     <section className="set-card">
-      <h2 className="set-card-title">
-        <i className="fa-regular fa-bell" /> Notifications
-      </h2>
+      {!hideTitle && (
+        <h2 className="set-card-title">
+          <UiIcon name="bell" size={18} /> Notifications
+        </h2>
+      )}
       <p className="set-card-sub">
-        Get alerted the moment lecturers or the library add materials to your
-        courses. The in-app bell always works; turn on background alerts to be
-        notified even when Nexus is closed.
+        Get alerted the moment new past questions are added to your courses.
+        The in-app bell always works; turn on background alerts to be notified
+        even when Nexus is closed.
       </p>
 
       {/* One-tap install (Android/desktop Chrome/Edge). Triggers the native
@@ -97,7 +102,7 @@ export default function NotificationsCard() {
           onClick={installApp}
           style={{ marginBottom: 10 }}
         >
-          <i className="fa-solid fa-down-to-bracket" /> Add Nexus to home screen
+          <UiIcon name="download" size={17} /> Add Nexus to home screen
         </button>
       )}
 
@@ -117,14 +122,14 @@ export default function NotificationsCard() {
         >
           <strong>One step on iPhone/iPad:</strong> Apple only delivers push to
           installed apps. In Safari, tap the{" "}
-          <i className="fa-solid fa-arrow-up-from-bracket" /> <strong>Share</strong>{" "}
+          <UiIcon name="download" size={14} /> <strong>Share</strong>{" "}
           button, scroll down and choose <strong>Add to Home Screen</strong>, then
           open <strong>Nexus</strong> from your Home Screen and come back to this
           page to turn alerts on.
         </div>
       ) : !supported ? (
         <p className="set-saved" style={{ color: "#b45309" }}>
-          <i className="fa-solid fa-circle-info" /> This browser can't show
+          <UiIcon name="info" size={15} /> This browser can't show
           background notifications - you'll still see the in-app bell.
         </p>
       ) : (
@@ -138,11 +143,11 @@ export default function NotificationsCard() {
           >
           {busy ? (
             <>
-              <i className="fa-solid fa-spinner fa-spin" /> Working…
+              <UiIcon name="loader" size={16} spin /> Working…
             </>
           ) : enabled ? (
             <>
-              <i className="fa-solid fa-bell-slash" /> Turn off background alerts
+              <UiIcon name="bell" size={16} /> Turn off background alerts
             </>
           ) : (
             <>
@@ -161,11 +166,7 @@ export default function NotificationsCard() {
               msg.type === "ok" ? "#065f46" : msg.type === "err" ? "#b91c1c" : "#b45309",
           }}
         >
-          <i
-            className={
-              msg.type === "ok" ? "fa-solid fa-check" : "fa-solid fa-circle-info"
-            }
-          />{" "}
+          <UiIcon name={msg.type === "ok" ? "check" : "info"} size={14} />{" "}
           {msg.text}
         </p>
       )}

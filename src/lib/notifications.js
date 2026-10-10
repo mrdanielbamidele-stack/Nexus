@@ -1,19 +1,21 @@
 // src/lib/notifications.js
 // The universal, works-on-every-device notification layer.
 //
-// Notifications live in the `public.notifications` table (one row per "new
-// material" event, course-scoped). This module:
-//   1. Loads recent notifications and keeps them in sync via Supabase Realtime.
+// Notifications are course-scoped "new past questions" rows kept in the
+// database (served by /api/notifications). This module:
+//   1. Loads recent notifications and re-checks every minute (and whenever the
+//      tab comes back into view).
 //   2. Filters them down to the courses the *current* student is taking
-//      (their list lives in localStorage, see studentCourses.js).
-//   3. Tracks an "last seen" timestamp per device so we can show an unread
+//      (their list lives on their account, see studentCourses.js).
+//   3. Tracks a "last seen" timestamp per device so we can show an unread
 //      badge - no server-side per-student state needed.
 //
 // Use the `useNotifications()` hook in React. It re-renders on new rows, on
 // course-list changes, and across tabs.
 
 import { useSyncExternalStore, useCallback } from "react";
-import { supabasePublic as supabase } from "./supabase";
+import { api } from "./api";
+import { isDemo } from "./demo";
 import { normalizeCode } from "./courseSlug";
 import { getEffectiveCourses } from "./studentCourses";
 
@@ -21,12 +23,11 @@ const SEEN_KEY = "nexus_notifs_seen_at"; // ISO timestamp the panel was last ope
 const DISMISS_KEY = "nexus_notifs_dismissed"; // ids the user deleted on this device
 const CHANGED_EVENT = "nexus:notifs-changed";
 const COURSES_EVENT = "nexus:courses-changed";
-const MAX_ROWS = 100;
+const REFRESH_MS = 60 * 1000;
 
-let _all = []; // raw rows from the DB (newest first), unfiltered by course
+let _all = []; // raw rows from the server (newest first), unfiltered by course
 let _loaded = false;
-let _channel = null;
-const _listeners = new Set();
+let _started = false;
 
 /* ------------------------------- course set ------------------------------- */
 
@@ -38,36 +39,30 @@ function takenCodeSet() {
 /* --------------------------------- loading -------------------------------- */
 
 async function load() {
-  const { data, error } = await supabase
-    .from("notifications")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(MAX_ROWS);
-  if (!error) {
-    _all = data || [];
+  if (isDemo) {
+    _loaded = true;
+    return;
+  }
+  try {
+    const { items } = await api("/notifications");
+    _all = items || [];
     _loaded = true;
     bump();
+  } catch {
+    // Offline: keep showing what we have.
   }
 }
 
 function ensureStarted() {
-  if (_channel) return;
+  if (_started) return;
+  _started = true;
   load();
-  _channel = supabase
-    .channel("notifications-feed")
-    .on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "notifications" },
-      (payload) => {
-        // Prepend the new row (dedupe by id) and trim.
-        _all = [payload.new, ..._all.filter((n) => n.id !== payload.new.id)].slice(
-          0,
-          MAX_ROWS
-        );
-        bump();
-      }
-    )
-    .subscribe();
+  setInterval(() => {
+    if (document.visibilityState === "visible") load();
+  }, REFRESH_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") load();
+  });
 }
 
 /* --------------------------- seen / dismissed ----------------------------- */
@@ -98,7 +93,7 @@ function writeDismissed(set) {
   bump();
 }
 
-// Hide a single notification on this device (the DB rows are shared across all
+// Hide a single notification on this device (the rows are shared across all
 // students, so "delete" is a local hide, not a server delete).
 export function dismiss(id) {
   const set = readDismissed();
@@ -148,12 +143,10 @@ function bump() {
 
 function subscribe(cb) {
   ensureStarted();
-  _listeners.add(cb);
   window.addEventListener(CHANGED_EVENT, cb);
   window.addEventListener(COURSES_EVENT, cb); // re-filter when courses change
   window.addEventListener("storage", cb); // sync seen-at across tabs
   return () => {
-    _listeners.delete(cb);
     window.removeEventListener(CHANGED_EVENT, cb);
     window.removeEventListener(COURSES_EVENT, cb);
     window.removeEventListener("storage", cb);

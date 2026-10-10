@@ -1,11 +1,25 @@
 import { useState, useEffect } from 'react'
-import { Outlet } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
 import Sidebar from './Sidebar'
 import NotificationBell from './NotificationBell'
-import NotificationToast from './NotificationToast'
+import ContactModal from './ContactModal'
+import FloatingChatWidget from './FloatingChatWidget'
+import ImpersonationBanner from './ImpersonationBanner'
 
-export default function Layout() {
+const VALID_MODALS = ['contact']
+
+// The app frame: sidebar, notification bell and the page itself.
+// `area="admin"` is the same frame with the staff navigation.
+export default function Layout({ area = 'student' }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const location = useLocation()
+  // Lazy initializer -captures the URL's `modal` param (e.g. a deep link to
+  // /?modal=contact) on first render, before the index route's <Navigate>
+  // strips the query string on redirect to /.
+  const [activeModal, setActiveModal] = useState(() => {
+    const requested = new URLSearchParams(location.search).get('modal')
+    return VALID_MODALS.includes(requested) ? requested : null
+  })
   const isDesktop = () => window.innerWidth >= 768
 
   const toggleMobile = () => setSidebarOpen(prev => !prev)
@@ -25,6 +39,8 @@ export default function Layout() {
 
   return (
     <div className="app">
+      <ImpersonationBanner />
+
       {/* Hamburger -mobile only */}
       <button
         className={`menu-btn ${sidebarOpen ? 'hidden' : ''}`}
@@ -40,8 +56,10 @@ export default function Layout() {
       />
 
       <Sidebar
+        area={area}
         isOpen={sidebarOpen}
         onNavClick={closeMobile}
+        onOpenModal={setActiveModal}
       />
 
       {/* Notification bell - fixed top-right, visible on every page/device */}
@@ -53,7 +71,9 @@ export default function Layout() {
         <Outlet />  {/* ← active page renders here */}
       </main>
 
-      <NotificationToast />
+      {activeModal === 'contact' && <ContactModal onClose={() => setActiveModal(null)} />}
+
+      <FloatingChatWidget />
     </div>
   )
 }

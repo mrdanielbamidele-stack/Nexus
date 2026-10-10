@@ -1,25 +1,22 @@
 // src/lib/studentCourses.js
 // Single source of truth for the courses a student is taking.
 //
-// A student's course list has two parts:
-//   1. BASE / "main" courses  -> derived from their programme + level in the
-//      courseCatalog. These are fixed: the student can't remove them.
-//   2. ADDED courses          -> extra courses the student adds themselves
-//      (e.g. during onboarding or from Settings). These can be removed.
+// The list is stored on the student's account (so it follows them to any
+// device). When they sign up it starts as the courses of their programme +
+// level, and from then on EVERY course in it can be removed, and any course in
+// the catalogue can be added.
 //
-// The added course codes live in localStorage under ADDED_KEY. The onboarding
-// flow (Auth.jsx) stores the full list (base + extra) on the student object as
-// `courses`, so on first read we backfill ADDED_KEY from that if needed.
-//
-// Every mutation dispatches a `nexus:courses-changed` event so any open screen
-// (Dashboard, Past Questions, Settings…) can refresh live. Use
+// Changes apply on screen immediately and are saved to the account in the
+// background. Every change dispatches `nexus:courses-changed` so any open
+// screen (Dashboard, Past Questions, Settings...) refreshes live. Use
 // `useEffectiveCourses()` in React to subscribe automatically.
 
 import { useSyncExternalStore } from "react";
 import { courseCatalog } from "../data/courseCatalog";
+import { api } from "./api";
+import { isDemo } from "./demo";
 import { getStudent, setStudent } from "./studentAuth";
 
-const ADDED_KEY = "nexus_added_courses";
 const CHANGED_EVENT = "nexus:courses-changed";
 
 const DEFAULT_COURSE_OS = "Computer Science";
@@ -60,92 +57,70 @@ export function getLevel() {
   return localStorage.getItem("level") || DEFAULT_LEVEL;
 }
 
-// The fixed programme courses for the student's programme + level.
-export function getBaseCourses() {
+// The courses of the student's programme + level - what they started with.
+export function getProgrammeCourses() {
   return courseCatalog[getCourseOS()]?.[getLevel()] || [];
 }
 
-function baseCodes() {
-  return getBaseCourses().map((c) => c.code);
+/* ------------------------------ their courses ----------------------------- */
+
+function readCodes() {
+  const student = getStudent();
+  if (Array.isArray(student?.courses)) {
+    return student.courses.filter((code) => typeof code === "string");
+  }
+  // A cached session from before the list was stored on the account.
+  return getProgrammeCourses().map((c) => c.code);
 }
 
-/* ------------------------------ added courses ----------------------------- */
-
-function readAdded() {
-  try {
-    const raw = localStorage.getItem(ADDED_KEY);
-    if (raw != null) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.filter((c) => typeof c === "string");
-    }
-  } catch {
-    /* fall through to backfill */
-  }
-
-  // Backfill: derive added codes from the onboarding `courses` list (base+extra)
-  // for sessions created before this store existed.
+async function writeCodes(codes) {
+  const previous = readCodes();
   const student = getStudent();
-  const base = new Set(baseCodes());
-  const derived = Array.isArray(student?.courses)
-    ? student.courses.filter((code) => !base.has(code))
-    : [];
-  // Persist so we don't recompute every time.
-  localStorage.setItem(ADDED_KEY, JSON.stringify(derived));
-  return derived;
-}
 
-function writeAdded(codes) {
-  // De-dupe, drop anything that's actually a base course, keep it tidy.
-  const base = new Set(baseCodes());
-  const seen = new Set();
-  const clean = [];
-  for (const code of codes) {
-    if (!code || base.has(code) || seen.has(code)) continue;
-    seen.add(code);
-    clean.push(code);
-  }
-  localStorage.setItem(ADDED_KEY, JSON.stringify(clean));
-
-  // Keep the student object's `courses` mirror in sync (base + added) so the
-  // rest of the app and any future reads stay consistent.
-  const student = getStudent();
-  if (student) setStudent({ ...student, courses: [...baseCodes(), ...clean] });
-
+  const clean = [...new Set(codes.filter(Boolean))];
+  if (student) setStudent({ ...student, courses: clean });
   emitChange();
+
+  if (isDemo || !student) return clean;
+
+  try {
+    const { me } = await api("/student/courses", { method: "PUT", body: { courses: clean } });
+    const latest = getStudent();
+    if (latest) setStudent({ ...latest, courses: me.courses });
+    emitChange();
+  } catch (err) {
+    // Couldn't save: put the list back so the screen doesn't lie.
+    const latest = getStudent();
+    if (latest) setStudent({ ...latest, courses: previous });
+    emitChange();
+    throw err;
+  }
   return clean;
 }
 
-export function getAddedCodes() {
-  return readAdded();
+export function hasCourse(code) {
+  return readCodes().includes(code);
 }
 
-// Add a course (by code) to the student's added list. Returns the new list.
+// Add a course (by code). Resolves to the new list; rejects with a readable
+// error if it couldn't be saved.
 export function addCourse(code) {
-  if (!code) return getAddedCodes();
-  const current = readAdded();
-  if (current.includes(code) || baseCodes().includes(code)) return current;
-  return writeAdded([...current, code]);
+  const current = readCodes();
+  if (!code || current.includes(code)) return Promise.resolve(current);
+  return writeCodes([...current, code]);
 }
 
-// Remove an added course. Base/programme courses are ignored (can't be removed).
+// Remove any course - there are no locked ones.
 export function removeCourse(code) {
-  const current = readAdded();
-  if (!current.includes(code)) return current;
-  return writeAdded(current.filter((c) => c !== code));
-}
-
-export function isAddedCourse(code) {
-  return readAdded().includes(code);
+  const current = readCodes();
+  if (!current.includes(code)) return Promise.resolve(current);
+  return writeCodes(current.filter((c) => c !== code));
 }
 
 /* ----------------------------- effective list ----------------------------- */
 
-// The full list the student is taking: base courses (locked) followed by added
-// courses (removable). Each item carries an `added` flag for the UI.
 export function getEffectiveCourses() {
-  const base = getBaseCourses().map((c) => ({ ...c, added: false }));
-  const added = readAdded().map((code) => ({ ...resolveCourse(code), added: true }));
-  return [...base, ...added];
+  return readCodes().map((code) => resolveCourse(code));
 }
 
 // Every course in the catalog, de-duped and sorted by code. Used by the
@@ -156,7 +131,7 @@ export function getAllCatalogCourses() {
 
 // Every catalog course the student isn't already taking - for the "add" picker.
 export function getAddableCourses() {
-  const taken = new Set(getEffectiveCourses().map((c) => c.code));
+  const taken = new Set(readCodes());
   return getAllCatalogCourses().filter((c) => !taken.has(c.code));
 }
 
@@ -178,11 +153,11 @@ function subscribe(callback) {
 // Cache the snapshot so useSyncExternalStore gets a stable reference between
 // renders (it only changes when the underlying codes change).
 let _snapshot = null;
-let _snapshotKey = "";
+let _snapshotKey = null;
 
 function getSnapshot() {
   const courses = getEffectiveCourses();
-  const key = courses.map((c) => `${c.code}:${c.added ? 1 : 0}`).join("|");
+  const key = courses.map((c) => c.code).join("|");
   if (key !== _snapshotKey) {
     _snapshotKey = key;
     _snapshot = courses;
@@ -190,7 +165,7 @@ function getSnapshot() {
   return _snapshot;
 }
 
-// React hook: returns the live effective course list and re-renders on change.
+// React hook: returns the live course list and re-renders on change.
 export function useEffectiveCourses() {
   return useSyncExternalStore(subscribe, getSnapshot);
 }

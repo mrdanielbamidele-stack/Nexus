@@ -1,6 +1,14 @@
 /* Per-course Past Questions page - year cards with a mode selector.
    Ported from the legacy First Nexus PastQuestions/<course>/index.html. */
 
+/* Page wash - painted on .main itself (which already stretches to the full
+   height of .app and owns the padding), so the gradient covers the whole
+   content area with no gap at the bottom. Scoped with :has() to this page
+   only; the rest of the app still uses the flat --bg. */
+.main:has(.pq-page-wrap) {
+  background: linear-gradient(180deg, #ffffff 0%, #f3f1fb 100%);
+}
+
 .pq-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -120,210 +128,202 @@
   box-shadow: none;
 }
 
-.pq-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: none;
-  color: var(--primary, #7c3aed);
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  padding: 0;
-  width: auto;
-  margin-bottom: 8px;
-}
-
-.pq-back:hover { text-decoration: underline; }
-
-/* ── Detailed explanation reveal (objective quiz) ─────────────────────────── */
-.pq-detail-toggle {
-  margin-top: 10px;
-  background: none;
-  border: 1px solid var(--primary, #7c3aed);
-  color: var(--primary, #7c3aed);
-  border-radius: 8px;
-  padding: 7px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  width: auto;
-  transition: background 0.2s;
-}
-.pq-detail-toggle:hover { background: var(--primary-light, #ede9fe); }
-
-.pq-detail {
-  margin-top: 10px;
-  color: #7c3aed;
-  border: 1px solid var(--primary, #7c3aed);
-  padding: 15px;
-  border-radius: 10px;
-  
-  line-height: 1.6;
-  font-size: 14px;
-}
-.pq-detail::before {
-  display: block;
-  font-weight: bold;
-  margin-bottom: 8px;
-  font-size: 13px;
-  opacity: 0.9;
-}
-.pq-detail p { margin: 0 0 8px; }
-.pq-detail p:last-child { margin: 0; }
-.pq-detail strong { font-weight: 700; }
-
-/* ── Fixed exam timer ──────────────────────────────────────────────────────
-   Pinned to the viewport so it stays visible while scrolling. It is placed
-   BELOW the fixed breadcrumb (.nx-breadcrumb.nx-fixed: top 64px mobile /
-   16px desktop) so the crumb can never cover it on any screen size. */
-.pq-timer-bar {
-  position: fixed;
-  top: 104px;                 /* clears the mobile breadcrumb (64px + its height) */
-  left: 12px;
-  width: max-content;
-  z-index: 480;               /* under the breadcrumb (500), above page content */
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
-  background: #fff;
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 12px;
-  padding: 10px 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-.pq-timer-label { font-size: 0.8rem; color: var(--text-muted, #6b7280); font-weight: 600; }
-.pq-timer-display {
-  font-size: 1.3rem;
-  font-weight: 800;
-  color: var(--primary, #7c3aed);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 2px;
-}
-.pq-timer-display.warning { color: #f59e0b; }
-.pq-timer-display.danger { color: #ef4444; }
-
-/* Reserve vertical space so the page content starts below the fixed timer. */
-.pq-timerfix { padding-top: 156px; }
-
-/* Threshold warning toast (30-min / 5-min) - sits just under the fixed timer. */
-.pq-timer-toast {
-  position: fixed;
-  top: 164px;
-  left: 12px;
-  width: max-content;
-  z-index: 479;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: #fffbeb;
-  border: 1.5px solid #f59e0b;
-  border-radius: 12px;
-  padding: 10px 20px;
-  color: #92400e;
-  font-weight: 700;
-  font-size: 0.95rem;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  animation: pq-toast-in 0.25s ease-out;
-}
-@keyframes pq-toast-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* Desktop: breadcrumb sits at top 16px to the right of the 260px sidebar,
-   and the page content is shifted right by .main { margin-left: 260px }. */
-@media (min-width: 768px) {
-  .pq-timer-bar  { top: 60px;  left: calc(260px + 24px); }
-  .pq-timer-toast { top: 115px; left: calc(260px + 24px); }
-  .pq-timerfix { padding-top: 112px; }
-}
-
-/* Preserve line breaks in multi-part past-question text (scoped so it can't
-   affect the Campaign essay pages, which reuse the same ce- classes). */
-.pq-quiz .ce-qtext { white-space: pre-line; }
-
-.pq-warning-banner {
-  background: #fef2f2;
-  border: 1.5px solid #ef4444;
-  border-radius: 10px;
-  padding: 12px 16px;
-  color: #991b1b;
-  font-weight: 600;
-  font-size: 0.92rem;
-  margin-bottom: 14px;
-}
-
-/* ── Over-answer modal overlay (replaces browser alert()) ────────────────── */
-.pq-modal-overlay {
+/* ── Full-screen paper reader (PDF / image / Word) ───────────────────────────
+   The paper fills the screen like it is the page. Everything else (back
+   button, zoom, links) floats above it. z-index 1200 covers the page chrome
+   but stays under the floating AI bubble (1500). On desktop it starts to the
+   right of the sidebar; on phones the sidebar is a drawer, so the paper takes
+   the whole screen. */
+.pq-reader {
   position: fixed;
   inset: 0;
-  z-index: 9999;
-  background: rgba(0, 0, 0, 0.6);
+  z-index: 1200;
+  background: #ececf1;
+}
+
+@media (min-width: 768px) {
+  .pq-reader { left: 260px; }   /* sidebar width - same as .main's margin-left */
+}
+
+.pq-reader-scroll {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* width:max-content lets a zoomed-in page scroll sideways; min-width keeps
+   narrower pages centred. */
+.pq-reader-pages {
+  position: relative;
+  box-sizing: border-box;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  min-width: 100%;
+}
+
+.pq-reader-page {
+  flex-shrink: 0;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
+
+.pq-reader-page canvas { display: block; }
+
+.pq-reader-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
+
+.pq-reader-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+
+.pq-reader-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-}
-.pq-modal-card {
-  background: #fff;
-  border-radius: 20px;
-  padding: 36px 28px 28px;
-  max-width: 500px;
-  width: 100%;
+  gap: 4px;
+  padding: 24px;
   text-align: center;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
-  animation: pq-modal-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  color: var(--text-muted, #6b7280);
 }
-@keyframes pq-modal-in {
-  from { opacity: 0; transform: scale(0.88) translateY(16px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+
+.pq-reader-status p { margin: 0; }
+.pq-reader-status a,
+.pq-reader-note a { color: var(--primary, #7c3aed); font-weight: 600; }
+
+/* Thin read-progress line along the very top. */
+.pq-reader-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: var(--primary, #7c3aed);
+  transition: width 0.2s ease;
+  pointer-events: none;
 }
-.pq-modal-icon {
-  font-size: 3rem;
-  color: #ef4444;
-  margin-bottom: 12px;
-  line-height: 1;
+
+/* ── Floating controls ──────────────────────────────────────────────────── */
+.pq-reader-float {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  pointer-events: none;           /* only the pills below catch clicks */
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
-.pq-modal-title {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: #ef4444;
-  margin: 0 0 18px;
-  line-height: 1.4;
+
+.pq-reader-float.hidden,
+.pq-reader-note.hidden {
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
 }
-.pq-modal-body p {
-  font-size: 0.88rem;
+
+.pq-reader-note.hidden { transform: translateY(8px); }
+
+.pq-reader-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
   color: #374151;
-  line-height: 1.6;
-  margin: 8px 0;
-  text-align: left;
-  background: #fff5f5;
- 
-  border-radius: 8px;
-  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: auto;
 }
-.pq-modal-body strong {
-  color: #ef4444;
-}
-.pq-modal-ok {
-  margin-top: 22px;
-  background: #ef4444;
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 13px 0px;
-  font-weight: 700;
-  font-size: 1rem;
+
+/* The link itself is the site-wide .pq-dash-back; the pill just gives it a
+   readable background over the paper, so drop the link's own bottom margin. */
+.pq-reader-back-pill .pq-dash-back { margin-bottom: 0; white-space: nowrap; }
+
+.pq-reader-tools { gap: 6px; padding: 5px 8px 5px 14px; }
+
+.pq-reader-tools button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #374151;
   cursor: pointer;
-  transition: background 0.18s, transform 0.1s;
-  width: 200px ;
 }
-.pq-modal-ok:hover {
-  background: #ed6c6c;  ;
-  transform: translateY(-1px);
+
+.pq-reader-tools button:hover:not(:disabled) { background: var(--primary-light, #ede9fe); }
+.pq-reader-tools button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.pq-reader-page-count {
+  white-space: nowrap;
+  padding-right: 8px;
+  border-right: 1px solid var(--border, #e5e7eb);
+  font-variant-numeric: tabular-nums;
 }
+
+.pq-reader-zoom {
+  min-width: 40px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.pq-reader-note {
+  position: absolute;
+  bottom: 14px;
+  left: 12px;
+  max-width: calc(100vw - 112px);   /* leave room for the AI bubble */
+  font-weight: 500;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+/* Very small phones: the zoom % label makes way so both pills fit on one row,
+   and the note drops its lead-in so it stays a compact pill. */
+@media (max-width: 480px) {
+  .pq-reader-note-lead { display: none; }
+}
+
+@media (max-width: 380px) {
+  .pq-reader-zoom { display: none; }
+}
+
+@media (max-width: 600px) {
+  .pq-reader-float { top: 8px; left: 8px; right: 8px; }
+  .pq-reader-pill { padding: 8px 12px; }
+  .pq-reader-tools { padding: 4px 6px 4px 12px; }
+  .pq-reader-note {
+    left: 8px;
+    bottom: 10px;
+    max-width: calc(100vw - 130px);   /* clear of the AI bubble */
+    font-size: 12px;
+    line-height: 1.35;
+    border-radius: 16px;
+  }
+}
+
+/* Sponsor footer under the last page of a paper (demo) */
+.pq-reader-footer { margin-top: 8px; }
+.pq-reader-footer .ln-ad { margin: 14px 0 0; }

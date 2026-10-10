@@ -1,0 +1,107 @@
+/* ===== Skeleton loading ================================================
+   While a screen waits for data it shows grey shapes in the layout of the
+   real content, with a soft shine passing over them. Shapes are built with
+   <Skeleton /> (see Skeleton.jsx); the boot placeholder in index.html uses
+   the same colours and timing. */
+
+.sk {
+  --sk-base: #ebe7f6;
+  --sk-shine: #f8f6fd;
+  display: block;
+  max-width: 100%;
+  border-radius: 8px;
+  background: linear-gradient(100deg, var(--sk-base) 35%, var(--sk-shine) 50%, var(--sk-base) 65%);
+  background-size: 300% 100%;
+  animation: sk-shimmer 1.5s ease-in-out infinite;
+}
+
+/* For dark surfaces such as the camera view */
+.sk.dark {
+  --sk-base: rgba(255, 255, 255, 0.07);
+  --sk-shine: rgba(255, 255, 255, 0.16);
+}
+
+@keyframes sk-shimmer {
+  from { background-position: 100% 0; }
+  to   { background-position: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk { animation: none; }
+}
+
+/* Read aloud by screen readers instead of a pile of empty boxes */
+.sk-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ----- paper reader: blank sheets while the file is fetched ----- */
+.sk-reader {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 72px 12px 0;
+  overflow: hidden;
+}
+
+.sk-sheet {
+  box-sizing: border-box;
+  width: min(100%, 820px);
+  flex: none;
+  aspect-ratio: 1 / 1.35;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 7% 8%;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
+
+/* the full-screen reader, before the paper's details are known */
+.sk-reader-back {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  z-index: 2;
+}
+
+/* ----- notification panel ----- */
+.sk-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #f3f4f6;
+}
+.sk-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* ----- camera: the viewfinder fills with a shimmer until the stream starts ----- */
+.up-cam-status.loading { padding: 0; }
+
+/* ----- owner area ----- */
+.sk-split {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+}
+.sk-split + .sk-split { border-top: 1px solid #f0edf9; }

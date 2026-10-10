@@ -27,3 +27,6 @@ dist-ssr
 
 .env
 .env.*
+
+# Keep the template (it has names only, no secrets)
+!.env.example

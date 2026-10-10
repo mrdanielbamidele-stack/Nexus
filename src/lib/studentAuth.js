@@ -1,9 +1,14 @@
 // src/lib/studentAuth.js
-// Tiny localStorage-backed "session" for the (fake) student auth flow.
-// A logged-in student is stored as JSON under STUDENT_KEY. We also mirror the
-// individual fields into the flat `username` / `courseOS` / `level` /
-// `regNumber` keys that the rest of the app (Dashboard, NexusAI, Settings,
-// Campaign, PastQuestions) already reads.
+// The browser's copy of the signed-in student.
+//
+// The real session lives on the server (an httpOnly cookie - see lib/session.js).
+// This is only a local cache of "who am I" so the screens can read it
+// synchronously. It is refreshed from the server every time the app starts and
+// after every sign-in, and a server that says "nobody is signed in" clears it.
+//
+// We also mirror individual fields into the flat `username` / `courseOS` /
+// `level` / `regNumber` keys that the rest of the app (Dashboard, Settings,
+// Past Questions) already reads.
 
 const STUDENT_KEY = "studentAuth";
 
@@ -24,7 +29,6 @@ export function isAuthed() {
 
 export function setStudent(student) {
   localStorage.setItem(STUDENT_KEY, JSON.stringify(student));
-  // Mirror the flat keys the rest of the app reads.
   for (const key of MIRRORED_KEYS) {
     if (student?.[key] != null) localStorage.setItem(key, student[key]);
   }
@@ -35,8 +39,16 @@ export function clearStudent() {
   for (const key of MIRRORED_KEYS) localStorage.removeItem(key);
 }
 
-// Backfill the flat keys for sessions created before mirroring existed, so an
-// already-logged-in student doesn't have to sign out/in to see their details.
-// Runs once when this module is first imported (early, via RequireAuth).
-const _existing = getStudent();
-if (_existing) setStudent(_existing);
+// The server's student record -> the shape the screens already use.
+export function applyServerStudent(me) {
+  if (!me) return clearStudent();
+  setStudent({
+    id: me.id,
+    email: me.email,
+    username: me.username,
+    regNumber: me.regNumber,
+    courseOS: me.programme,
+    level: me.level,
+    courses: me.courses,
+  });
+}

@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import { useNotifications } from "../lib/notifications";
 import { codeToSlug, formatCode } from "../lib/courseSlug";
+import { NotificationRowsSkeleton } from "./Skeleton";
 import "./NotificationBell.css";
 
 function timeAgo(iso) {
@@ -23,7 +24,7 @@ function timeAgo(iso) {
 }
 
 export default function NotificationBell() {
-  const { items, unreadCount, seenAt, markSeen, dismiss, dismissAll } =
+  const { items, loaded, unreadCount, seenAt, markSeen, dismiss, dismissAll } =
     useNotifications();
   const [open, setOpen] = useState(false);
   // Frozen "last seen" captured the moment the panel opens, so items that are
@@ -91,7 +92,9 @@ export default function NotificationBell() {
           </div>
 
           <div className="nx-bell-list">
-            {items.length === 0 ? (
+            {!loaded && items.length === 0 ? (
+              <NotificationRowsSkeleton />
+            ) : items.length === 0 ? (
               <div className="nx-bell-empty">
                 <i className="fa-regular fa-bell-slash" />
                 <p>No notifications yet.</p>
@@ -110,16 +113,8 @@ export default function NotificationBell() {
                     onKeyDown={(e) => e.key === "Enter" && openCourse(n)}
                   >
                     {isNew && <span className="nx-bell-newdot" aria-label="new" />}
-                    <span
-                      className={`nx-bell-dot ${n.kind === "library" ? "lib" : "mat"}`}
-                    >
-                      <i
-                        className={
-                          n.kind === "library"
-                            ? "fa-solid fa-book"
-                            : "fa-solid fa-file-arrow-up"
-                        }
-                      />
+                    <span className="nx-bell-dot mat">
+                      <i className="fa-solid fa-file-arrow-up" />
                     </span>
                     <span className="nx-bell-body">
                       <span className="nx-bell-title">{formatCode(n.course_id)}</span>

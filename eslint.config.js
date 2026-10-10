@@ -30,4 +30,12 @@ export default [
       ],
     },
   },
+  {
+    // The API (server/), the Netlify Function and the build scripts run in Node.
+    files: ['server/**/*.{js,mjs}', 'netlify/**/*.{js,mjs}', 'scripts/**/*.{js,mjs}', 'vite.config.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: globals.node,
+    },
+  },
 ]

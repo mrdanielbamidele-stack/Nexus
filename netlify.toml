@@ -1,0 +1,14 @@
+# Netlify: build the site, and run the API (server/) as one Function.
+# The /api/* -> function rewrite lives in public/_redirects so it sits ahead of
+# the single-page-app fallback.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
