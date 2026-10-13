@@ -8,6 +8,7 @@
 import { Meta, Paper } from './models.js'
 import { seedPapers } from './seedPapers.js'
 import { pqKey } from './lib/courses.js'
+import { normalizeAllVersions } from './lib/papers.js'
 
 let done = false
 
@@ -29,7 +30,10 @@ export async function ensureSeeded() {
           session: p.session,
           version: 1,
           status: 'approved',
-          source: 'seed',
+          // They are the owner's papers. The files start out as the static PDFs
+          // in public/pastquestions; `npm run papers:cloud` moves them to Cloudinary.
+          source: 'dele',
+          uploaderName: 'Dele (owner)',
           files: [{
             url: `/pastquestions/${p.file}`,
             name: p.file,
@@ -45,6 +49,9 @@ export async function ensureSeeded() {
       throw err
     }
   }
+
+  // Public versions are always 1, 2, 3... with no gaps.
+  await normalizeAllVersions()
 
   done = true
 }

@@ -39,7 +39,8 @@ export default function Layout({ area = 'student' }) {
 
   return (
     <div className="app">
-      <ImpersonationBanner />
+      {/* Phones only: on desktop this lives in the sidebar (see Sidebar.jsx) */}
+      <ImpersonationBanner variant="strip" />
 
       {/* Hamburger -mobile only */}
       <button

@@ -15,6 +15,7 @@ import {
   MAX_DOC_BYTES, MAX_DOCS, MAX_PAGES, DOC_EXTENSIONS, IMAGE_EXTENSIONS, SESSIONS,
   classifyFile, extOf, formatBytes, submitUpload, uuid,
 } from '../lib/studentUploads'
+import { useDele } from './dele/deleContext'
 import './Upload.css'
 
 const IMAGE_ACCEPT = IMAGE_EXTENSIONS.map(e => `.${e}`).join(',')
@@ -193,9 +194,14 @@ function PageLightbox({ pages, index, onIndex, onClose, onRotate, onRetake, onRe
 
 // `variant="staff"` is the admin version (/admin/upload): same flow, but it asks
 // for solved or properly typed papers rather than phone snaps.
+// `variant="owner"` is /delealone/upload: same page again, but the paper goes
+// live straight away (no review) and its title - "PHY 101 2023/2024", then
+// "... v2" - is worked out for you.
 export default function Upload({ variant = 'student' }) {
   const staff = variant === 'staff'
-  const signedIn = staff || isAuthed()
+  const owner = variant === 'owner'
+  const signedIn = staff || owner || isAuthed()
+  const dele = useDele() // only set inside the owner area
 
   // Every course in the catalog, A to Z.
   const courseList = useMemo(getAllCatalogCourses, [])
@@ -216,6 +222,8 @@ export default function Upload({ variant = 'student' }) {
   const [error, setError] = useState('')
   const [hint, setHint] = useState(null)      // 'course' | 'year' | 'files' - what they missed
   const [nudge, setNudge] = useState(false)
+  const [title, setTitle] = useState('')      // owner: what the paper will be called
+  const [published, setPublished] = useState(null) // owner: the paper that just went live
 
   const courseInput = useRef(null)
   const courseField = useRef(null)
@@ -231,16 +239,30 @@ export default function Upload({ variant = 'student' }) {
   urls.current = { pages, docs }
 
   useEffect(() => {
-    document.title = 'Upload · Nexus'
+    if (!owner) document.title = 'Upload · Nexus'
     // Free the in-memory previews when leaving the page.
     return () => {
       urls.current.pages.forEach(p => URL.revokeObjectURL(p.url))
       urls.current.docs.forEach(d => URL.revokeObjectURL(d.url))
     }
-  }, [])
+  }, [owner])
 
   // Any change to what's being sent starts a fresh submission.
   useEffect(() => { attempt.current = null }, [pages, docs, courseCode, session])
+
+  // Owner: the title fills itself in as soon as the course and year are chosen
+  // (and again after publishing, since the next version number moves on).
+  useEffect(() => {
+    if (!owner || !courseCode || !session) {
+      setTitle('')
+      return
+    }
+    let cancelled = false
+    dele.call(`/next-version?course=${encodeURIComponent(courseCode)}&session=${encodeURIComponent(session)}`)
+      .then(result => { if (!cancelled) setTitle(result.title) })
+      .catch(() => { if (!cancelled) setTitle('') })
+    return () => { cancelled = true }
+  }, [owner, dele, courseCode, session, stage])
 
   // A file dropped just outside the drop zone shouldn't navigate the tab away.
   useEffect(() => {
@@ -444,15 +466,17 @@ export default function Upload({ variant = 'student' }) {
     setError('')
     attempt.current ||= { id: uuid(), sent: {} }
     try {
-      await submitUpload({
+      const result = await submitUpload({
         attempt: attempt.current,
         courseCode,
         session,
         pages: pages.map(p => p.blob),
         docs: docs.map(d => d.file),
         as: staff ? 'admin' : 'student',
+        recordPath: owner ? '/dele/papers' : undefined,
         onProgress: (done, total) => setProgress({ done, total }),
       })
+      if (owner) setPublished(result.paper)
       setStage('done')
     } catch (err) {
       setError(err.message)
@@ -468,6 +492,10 @@ export default function Upload({ variant = 'student' }) {
     setNotices([])
     setError('')
     setHint(null)
+    setPublished(null)
+    // The year they just sent is not the one they are about to send next. The
+    // course stays, since the next paper is often from the same course.
+    setSession('')
     setStage('form')
   }
 
@@ -487,18 +515,33 @@ export default function Upload({ variant = 'student' }) {
         <section className="up-card up-done">
           <Confetti />
           <span className="up-done-icon"><UiIcon name="check" size={38} /></span>
-          <h1 className="up-serif">Thank you!</h1>
-          <p>
-            {parts} for <strong>{course?.code}</strong> · {session} {total === 1 ? 'is' : 'are'} on the way
-            to our team. Everything is checked before it goes live, so it may take a little while to show up.
-          </p>
+          {owner ? (
+            <>
+              <h1 className="up-serif">Published</h1>
+              <p>
+                <strong>{published?.title || `${course?.code} · ${session}`}</strong> is live. It was approved
+                automatically, so students can open it now.
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="up-serif">Thank you!</h1>
+              <p>
+                {parts} for <strong>{course?.code}</strong> · {session} {total === 1 ? 'is' : 'are'} on the way
+                to our team. Everything is checked before it goes live, so it may take a little while to show up.
+              </p>
+            </>
+          )}
           <div className="up-done-actions">
             <button type="button" className="up-btn primary" onClick={startOver}>
               <UiIcon name="plus" size={17} /> Upload another
             </button>
-            {signedIn
+            {owner && published?.courseKey && (
+              <Link to={`/delealone/compare?course=${published.courseKey}`} className="up-btn">See it in Compare</Link>
+            )}
+            {!owner && (signedIn
               ? <Link to={staff ? '/admin' : '/'} className="up-btn">Back to dashboard</Link>
-              : <Link to="/auth" className="up-btn">Sign in</Link>}
+              : <Link to="/auth" className="up-btn">Sign in</Link>)}
           </div>
         </section>
       </div>
@@ -518,13 +561,16 @@ export default function Upload({ variant = 'student' }) {
       <header className="up-head">
         <h1 className="up-title">Upload</h1>
         <p className="up-lead">
-          {staff
-            ? 'Help students with solved or properly documented past questions.'
-            : 'Share a past question paper with everyone studying the same course.'}
+          {owner
+            ? 'Papers you upload here are approved immediately and credited to you.'
+            : staff
+              ? 'Help students with solved or properly documented past questions.'
+              : 'Share a past question paper with everyone studying the same course.'}
         </p>
       </header>
 
-      {staff ? (
+      {/* The owner doesn't need the pitch - straight to the form */}
+      {!owner && (staff ? (
         <HeroBanner className="up-hero" title="Send us the good ones." art={<UploadArt />}>
           Most of the past questions on Nexus are simply photos snapped on a phone. If you have
           papers that are <b>solved</b>, or properly typed and formatted as a <b>PDF or Word file</b>,
@@ -536,7 +582,7 @@ export default function Upload({ variant = 'student' }) {
           A few photos or a quick file drop is all it takes. We look over every upload before it
           goes live, so the papers on Nexus stay clean and correct.
         </HeroBanner>
-      )}
+      ))}
 
       {/* 1 - which paper */}
       <section className="up-card">
@@ -575,6 +621,20 @@ export default function Upload({ variant = 'student' }) {
           </div>
           {hint === 'year' && !session && <Hint>{HINTS.year}</Hint>}
         </div>
+
+        {owner && (
+          <p className="up-saveas">
+            <UiIcon name="doc" size={18} />
+            {title ? (
+              <>
+                <span>Will be saved as</span>
+                <strong>{title}</strong>
+              </>
+            ) : (
+              <span>Pick a course and a year to see what this will be saved as.</span>
+            )}
+          </p>
+        )}
       </section>
 
       {/* 2 - the paper itself */}
@@ -583,7 +643,7 @@ export default function Upload({ variant = 'student' }) {
           tone="violet"
           icon="cloud"
           title="Add the paper"
-          sub={staff
+          sub={staff || owner
             ? 'A solved or typed PDF or Word file works best. Photos are fine too.'
             : 'Photos of each page, or a document - whichever you have.'}
         />
@@ -734,7 +794,7 @@ export default function Upload({ variant = 'student' }) {
           ) : (
             <span className="up-send-label">
            
-              {error ? 'Try again' : 'Submit for review'}
+              {error ? 'Try again' : owner ? 'Publish' : 'Submit for review'}
               {countLabel && <em>{countLabel}</em>}
               
             </span>
@@ -742,7 +802,9 @@ export default function Upload({ variant = 'student' }) {
         </button>
       </div>
 
-      <LynklensAd variant="note" message="Every paper you share keeps this going - made possible by Lynklens." />
+      {!owner && (
+        <LynklensAd variant="note" message="Every paper you share keeps this going - made possible by Lynklens." />
+      )}
 
       <input ref={anyInput} type="file" hidden multiple accept={`${IMAGE_ACCEPT},${DOC_ACCEPT}`} onChange={pickFiles} />
       <input ref={photoInput} type="file" hidden multiple accept={IMAGE_ACCEPT} onChange={pickFiles} />

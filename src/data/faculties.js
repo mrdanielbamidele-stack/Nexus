@@ -7,8 +7,8 @@
 
 export const FACULTIES = [
   {
-    name: 'Computing & Information Sciences',
-    departments: ['Computer Science', 'Software Engineering', 'Cyber Security'],
+    name: 'Computing & Applied Sciences',
+    departments: ['Computer Science', 'Software Engineering', 'Cyber Security', 'Biotechnology' ,'Architecture'],
   },
   {
     name: 'Engineering',
@@ -32,21 +32,14 @@ export const FACULTIES = [
     ],
   },
   {
-    name: 'Natural & Applied Sciences',
-    departments: ['Biochemistry', 'Biotechnology', 'Physics with Electronics', 'Mathematics'],
-  },
-  {
     name: 'Health & Medical Sciences',
-    departments: ['Medical Laboratory Science', 'Public Health', 'Nursing Science', 'Medicine & Surgery'],
+    departments: ['Medical Laboratory Science', 'Public Health', 'Nursing Science', 'Medicine & Surgery' , 'Biochemistry',  'Physics with Electronics', 'Mathematics'],
   },
   {
     name: 'Law',
     departments: ['Law'],
   },
-  {
-    name: 'Environmental Design',
-    departments: ['Architecture'],
-  },
+
   {
     name: 'JUPEB',
     departments: [

@@ -723,7 +723,7 @@ function ForgotForm({ role, email, setEmail, onBack, onSignup }) {
 function VerifyCard({ role, email, onStartOver }) {
   return (
     <div>
-      <h1 className="auth-title">Confirm email</h1>
+      <h1 className="auth-title auth-title-center">Confirm email</h1>
       <p className="auth-lead">
         Your account is created. One last step: continue with Google so we know{' '}
         <strong>{email || 'your school email'}</strong> really is yours.

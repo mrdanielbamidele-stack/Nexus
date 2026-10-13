@@ -1,23 +1,24 @@
-import { useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { useMemo, useRef, useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router";
 import "./Settings.css";
 import { api } from "../lib/api";
 import { signOut } from "../lib/session";
-import { getStudent, setStudent } from "../lib/studentAuth";
+import { applyServerStudent, getStudent, setStudent } from "../lib/studentAuth";
 import {
   addCourse,
   getAllCatalogCourses,
   removeCourse,
   useEffectiveCourses,
 } from "../lib/studentCourses";
-import ScrollToTop from '../components/ScrollToTop';
-import BackLink from '../components/BackLink';
-import AccountSecurity from '../components/AccountSecurity';
-import NotificationsCard from '../components/NotificationsCard';
-import UiIcon from '../components/UiIcon';
-import HeroBanner from '../components/HeroBanner';
-import LynklensAd from '../components/LynklensAd';
-import { isDemo } from '../lib/demo';
+import { courseCatalog } from "../data/courseCatalog";
+import AccountSecurity from "../components/AccountSecurity";
+import NotificationsCard from "../components/NotificationsCard";
+import SettingsHub from "../components/SettingsHub";
+import UiIcon from "../components/UiIcon";
+import CourseCombobox from "../components/CourseCombobox";
+import { SetRow, SetSection } from "../components/SetSection";
+import HeroBanner from "../components/HeroBanner";
+import { isDemo } from "../lib/demo";
 
 /* ------------------------------- helpers -------------------------------- */
 
@@ -28,42 +29,289 @@ function initialsOf(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function prettyCode(code) {
-  return code.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+const programmes = Object.keys(courseCatalog);
+const levelsOf = (programme) => Object.keys(courseCatalog[programme] || {});
+const levelLabel = (level) => (/^\d+$/.test(level) ? `${level} level` : level);
+
+const Status = ({ type, children }) =>
+  children ? (
+    <p className={`set-status is-${type}`} role={type === "err" ? "alert" : "status"}>
+      <UiIcon name={type === "ok" ? "check" : "alert"} size={14} />
+      <span>{children}</span>
+    </p>
+  ) : null;
+
+/* -------------------------------- profile -------------------------------- */
+
+function ProfileSection({ student }) {
+  const [username, setUsername] = useState(
+    () => localStorage.getItem("username") || student?.username || "Guest"
+  );
+  const [draftName, setDraftName] = useState(username);
+  const [nameState, setNameState] = useState({ type: "", text: "" });
+  const [savingName, setSavingName] = useState(false);
+
+  const nameChanged = draftName.trim() && draftName.trim() !== username;
+  const regNumber = localStorage.getItem("regNumber") || student?.regNumber || "-";
+
+  async function saveName() {
+    let value = draftName.trim();
+    if (!value) return;
+    value = value.charAt(0).toUpperCase() + value.slice(1);
+    setNameState({ type: "", text: "" });
+    setSavingName(true);
+
+    try {
+      if (!isDemo) {
+        const { me } = await api("/student/profile", { method: "PATCH", body: { username: value } });
+        value = me.username;
+      }
+      localStorage.setItem("username", value);
+      const current = getStudent();
+      if (current) setStudent({ ...current, username: value });
+      setUsername(value);
+      setDraftName(value);
+      setNameState({ type: "ok", text: "Saved." });
+    } catch (err) {
+      setNameState({ type: "err", text: err.message });
+    } finally {
+      setSavingName(false);
+    }
+  }
+
+  return (
+    <>
+      <SetSection title="Display name" sub="This is how your name appears across Nexus.">
+        <div className="set-row set-who">
+          <div className="set-avatar">{initialsOf(username)}</div>
+          <div className="set-profile-meta">
+            <p className="set-profile-name">{username}</p>
+            <p className="set-profile-reg">{student?.email || `Reg No. ${regNumber}`}</p>
+          </div>
+        </div>
+
+        <div className="set-body">
+          <label className="set-label" htmlFor="set-name">Username</label>
+          <input
+            id="set-name"
+            className="set-input"
+            placeholder="Enter your display name"
+            value={draftName}
+            maxLength={30}
+            onChange={(e) => setDraftName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && nameChanged && saveName()}
+          />
+          <Status type={nameState.type}>{nameState.text}</Status>
+        </div>
+
+        <div className="set-foot">
+          <button
+            type="button"
+            className="set-btn-primary"
+            disabled={!nameChanged || savingName}
+            onClick={saveName}
+          >
+            {savingName ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </SetSection>
+
+      <StudySection student={student} />
+
+      <SetSection title="Account details" sub="Your sign-in identity. These can't be edited here.">
+        <SetRow
+          title="School email"
+          desc={student?.email || "-"}
+          action={<Link to="/settings?section=account">Change</Link>}
+        />
+        <SetRow title="Registration number" desc={regNumber} />
+      </SetSection>
+    </>
+  );
 }
 
-/* ----------------------------- course editor ---------------------------- */
+// Course of study + level. Changing them can optionally bring the course list
+// along; the person decides, so nothing they added by hand is lost by accident.
+function StudySection({ student }) {
+  // What is saved right now (it moves when a change is saved).
+  const [saved, setSaved] = useState(() => ({
+    programme: student?.courseOS || localStorage.getItem("courseOS") || "",
+    level: student?.level || localStorage.getItem("level") || "",
+  }));
+  const savedProgramme = saved.programme;
+  const savedLevel = saved.level;
 
-function CourseEditor() {
-  const courses = useEffectiveCourses();
-  const [query, setQuery] = useState("");
-  const [confirming, setConfirming] = useState(null); // code pending removal
+  const [programme, setProgramme] = useState(savedProgramme);
+  const [level, setLevel] = useState(savedLevel);
+  const [reset, setReset] = useState(true);
+  const [state, setState] = useState({ type: "", text: "" });
+  const [busy, setBusy] = useState(false);
+
+  const levels = levelsOf(programme);
+  const changed = programme !== savedProgramme || level !== savedLevel;
+
+  function pickProgramme(next) {
+    setProgramme(next);
+    // Keep the level if the new course has it, otherwise make them choose.
+    if (!levelsOf(next).includes(level)) setLevel("");
+  }
+
+  async function save() {
+    if (!programme || !level) {
+      return setState({ type: "err", text: "Choose both your course of study and your level." });
+    }
+    setState({ type: "", text: "" });
+    setBusy(true);
+
+    try {
+      if (isDemo) throw new Error("This is the demo - your course of study stays as it is.");
+      const { me } = await api("/student/programme", {
+        method: "PUT",
+        body: { programme, level, resetCourses: reset },
+      });
+      applyServerStudent(me);
+      setSaved({ programme: me.programme, level: me.level });
+      window.dispatchEvent(new Event("nexus:courses-changed"));
+      setState({
+        type: "ok",
+        text: reset
+          ? `Updated. Your courses are now the ${levelLabel(me.level)} ${me.programme} courses.`
+          : "Updated. Your course list was left as it was.",
+      });
+    } catch (err) {
+      setState({ type: "err", text: err.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <SetSection title="Course of study" sub="Moved up a level or changed course? Update it here.">
+      <div className="set-body">
+        <div className="set-grid-2">
+          <div className="set-field">
+            <label className="set-label" htmlFor="set-programme">Course of study</label>
+            <select
+              id="set-programme"
+              className="set-select"
+              value={programme}
+              onChange={(e) => pickProgramme(e.target.value)}
+              disabled={busy}
+            >
+              <option value="">Select your course…</option>
+              {programmes.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+
+          <div className="set-field">
+            <label className="set-label" htmlFor="set-level">Level</label>
+            <select
+              id="set-level"
+              className="set-select"
+              value={level}
+              onChange={(e) => setLevel(e.target.value)}
+              disabled={busy || !programme}
+            >
+              <option value="">{programme ? "Select your level…" : "Choose a course first"}</option>
+              {levels.map((l) => <option key={l} value={l}>{levelLabel(l)}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {changed && (
+          <label className="set-check">
+            <input type="checkbox" checked={reset} onChange={(e) => setReset(e.target.checked)} />
+            <span>
+              Replace my course list with the courses for this course of study and level.
+              Untick to keep the courses I have now.
+            </span>
+          </label>
+        )}
+
+        <Status type={state.type}>{state.text}</Status>
+      </div>
+
+      <div className="set-foot">
+        <button type="button" className="set-btn-primary" disabled={!changed || busy} onClick={save}>
+          {busy ? "Saving…" : "Save changes"}
+        </button>
+        {changed && (
+          <button
+            type="button"
+            className="set-btn-ghost"
+            disabled={busy}
+            onClick={() => { setProgramme(savedProgramme); setLevel(savedLevel); setState({ type: "", text: "" }); }}
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+    </SetSection>
+  );
+}
+
+/* -------------------------------- courses -------------------------------- */
+
+// "Add course" opens a panel with the same search box as the upload page:
+// type a code or title, the best match is highlighted, and Enter adds it.
+function AddCoursePanel({ taken, onClose }) {
   const [error, setError] = useState("");
+  const [justAdded, setJustAdded] = useState("");
+  // Bumping this empties the search box, ready for the next course.
+  const [round, setRound] = useState(0);
+  const input = useRef(null);
 
-  const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    const taken = new Set(courses.map((c) => c.code));
-    return getAllCatalogCourses()
-      .filter((c) => !taken.has(c.code))
-      .filter(
-        (c) =>
-          c.code.toLowerCase().includes(q) || c.title.toLowerCase().includes(q)
-      )
-      .slice(0, 8);
-  }, [query, courses]);
+  const options = useMemo(
+    () => getAllCatalogCourses().filter((c) => !taken.has(c.code)),
+    [taken]
+  );
 
-  const totalCredits = courses.reduce((sum, c) => sum + (c.creditHours || 0), 0);
+  useEffect(() => {
+    input.current?.focus();
+  }, [round]);
 
-  async function handleAdd(code) {
+  async function add(code) {
+    if (!code) return;
     setError("");
-    setQuery("");
+    setJustAdded("");
     try {
       await addCourse(code);
+      setJustAdded(`${code} added to your courses.`);
     } catch (err) {
       setError(err.message);
     }
+    setRound((r) => r + 1);
   }
+
+  return (
+    <div className="set-picker">
+      <div className="set-picker-head">
+        <h3 className="set-picker-title">Add a course</h3>
+        <button type="button" className="set-btn-ghost set-btn-sm" onClick={onClose}>Done</button>
+      </div>
+
+      <CourseCombobox
+        key={round}
+        courses={options}
+        value=""
+        onChange={add}
+        inputRef={input}
+        pickOnBlur={false}
+      />
+
+      <Status type="ok">{justAdded}</Status>
+      <Status type="err">{error}</Status>
+    </div>
+  );
+}
+
+function CoursesSection() {
+  const courses = useEffectiveCourses();
+  const [adding, setAdding] = useState(false);
+  const [confirming, setConfirming] = useState(null); // code pending removal
+  const [error, setError] = useState("");
+
+  const taken = useMemo(() => new Set(courses.map((c) => c.code)), [courses]);
 
   async function handleRemove(code) {
     setError("");
@@ -76,195 +324,78 @@ function CourseEditor() {
   }
 
   return (
-    <section className="set-card">
-      <p className="set-card-sub">
-        {courses.length} course{courses.length === 1 ? "" : "s"} ·{" "}
-        {totalCredits} credit units
-      </p>
-
-      {courses.length === 0 && (
-        <p className="set-card-sub">
-          You have no courses yet. Search below to add the ones you take.
-        </p>
+    <SetSection
+      title="Your courses"
+      sub={`${courses.length} course${courses.length === 1 ? "" : "s"}`}
+      actions={!adding && (
+        <button type="button" className="set-btn-primary" onClick={() => setAdding(true)}>
+          <UiIcon name="plus" size={15} /> Add course
+        </button>
       )}
-
-      <ul className="set-course-list">
-        {courses.map((c) => (
-          <li key={c.code} className="set-course-row">
-            <div className="set-course-main">
-              <span className="set-course-code">{prettyCode(c.code)}</span>
-              <span className="set-course-title">{c.title}</span>
-            </div>
-
-            <div className="set-course-right">
-              {confirming === c.code ? (
-                <span className="set-confirm">
-                  <button
-                    type="button"
-                    className="set-confirm-yes"
-                    onClick={() => handleRemove(c.code)}
-                  >
-                    Remove
-                  </button>
-                  <button
-                    type="button"
-                    className="set-confirm-no"
-                    onClick={() => setConfirming(null)}
-                  >
-                    Cancel
-                  </button>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="set-course-remove"
-                  aria-label={`Remove ${prettyCode(c.code)}`}
-                  title="Remove this course"
-                  onClick={() => setConfirming(c.code)}
-                >
-                  <UiIcon name="x" size={15} />
-                </button>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
+    >
+      {adding && (
+        <div className="set-body">
+          <AddCoursePanel taken={taken} onClose={() => setAdding(false)} />
+        </div>
+      )}
 
       {error && (
-        <p className="set-error" role="alert">
-          <UiIcon name="alert" size={14} /> {error}
-        </p>
+        <div className="set-body"><Status type="err">{error}</Status></div>
       )}
 
-      {/* Add a course */}
-      <div className="set-add">
-        <div className="set-add-field">
-          <UiIcon name="search" size={17} />
-          <input
-            type="text"
-            placeholder="Add a course - search by code or title…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            autoComplete="off"
-          />
+      {courses.length === 0 && (
+        <div className="set-body">
+          <p className="set-row-desc" style={{ margin: 0 }}>
+            You have no courses yet. Tap <strong>Add course</strong> to pick the ones you take.
+          </p>
         </div>
+      )}
 
-        {query.trim() && (
-          <ul className="set-add-results">
-            {matches.length ? (
-              matches.map((c) => (
-                <li key={c.code}>
-                  <button type="button" onClick={() => handleAdd(c.code)}>
-                    <span className="set-add-code">{prettyCode(c.code)}</span>
-                    <span className="set-add-title">{c.title}</span>
-                    <UiIcon name="plus" size={16} />
-                  </button>
-                </li>
-              ))
+      {courses.map((c) => (
+        <div key={c.code} className="set-row">
+          <div className="set-row-text">
+            <p className="set-row-title">{c.code}</p>
+            <p className="set-row-desc">{c.title}</p>
+          </div>
+
+          <div className="set-row-action">
+            {confirming === c.code ? (
+              <span className="set-confirm">
+                <button type="button" className="set-btn-danger set-btn-sm" onClick={() => handleRemove(c.code)}>
+                  Remove
+                </button>
+                <button type="button" className="set-btn-ghost set-btn-sm" onClick={() => setConfirming(null)}>
+                  Cancel
+                </button>
+              </span>
             ) : (
-              <li className="set-add-empty">No matching courses</li>
+              <button
+                type="button"
+                className="set-btn-ghost set-btn-sm"
+                aria-label={`Remove ${c.code}`}
+                onClick={() => setConfirming(c.code)}
+              >
+                Remove
+              </button>
             )}
-          </ul>
-        )}
-      </div>
-
-      <p className="set-note">
-        <UiIcon name="info" size={15} />
-        <span>
-          You can add or remove any course. Past questions and alerts follow
-          the courses listed here.
-        </span>
-      </p>
-    </section>
+          </div>
+        </div>
+      ))}
+    </SetSection>
   );
 }
 
-/* -------------------------------- page ---------------------------------- */
 
-// Hub of tiles at /settings; each opens /settings?section=<id>.
-const SECTIONS = [
-  {
-    id: "profile",
-    title: "Profile",
-    icon: "user",
-    tone: "violet",
-    eyebrow: "A space that works for you",
-    desc: "Change your display name and check your registration details.",
-    lead: "Your identity across Nexus · A few details make all the difference.",
-    sponsor: "Without Lynklens, none of this would be possible - your profile, your papers, all free for you.",
-  },
-  {
-    id: "courses",
-    title: "My Courses",
-    icon: "book",
-    tone: "blue",
-    eyebrow: "What you're studying",
-    desc: "Add or remove the courses that show up on your dashboard.",
-    lead: "Keep your course list in step with your timetable.",
-    sponsor: "Every course, every past paper, in your palm - brought to you by Lynklens.",
-  },
-  {
-    id: "notifications",
-    title: "Notifications",
-    icon: "bell",
-    tone: "peach",
-    eyebrow: "Stay in the loop",
-    desc: "Get alerted when new past questions are added to your courses.",
-    lead: "Choose how Nexus reaches you.",
-    sponsor: "New materials reach your pocket the moment they land - thanks to Lynklens.",
-  },
-  {
-    id: "account",
-    title: "Account",
-    icon: "shield",
-    tone: "sage",
-    eyebrow: "Sign-in & security",
-    desc: "Your school email, password and signing out.",
-    lead: "Manage how you sign in to Nexus.",
-    sponsor: "Study safely. Lynklens checks every link before you click it.",
-  },
-];
 
 export default function Settings() {
   const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const section = SECTIONS.find((s) => s.id === params.get("section")) || null;
-
   const student = getStudent();
   const courses = useEffectiveCourses();
-  const [username, setUsername] = useState(
-    () => localStorage.getItem("username") || student?.username || "Guest"
-  );
-  const [draftName, setDraftName] = useState(username);
-  const [saved, setSaved] = useState(false);
-  const [nameError, setNameError] = useState("");
 
+  const username = localStorage.getItem("username") || student?.username || "Guest";
   const regNumber = localStorage.getItem("regNumber") || student?.regNumber || "-";
-
-  async function saveName() {
-    let v = draftName.trim();
-    if (!v) return;
-    v = v.charAt(0).toUpperCase() + v.slice(1);
-    setNameError("");
-
-    try {
-      if (!isDemo) {
-        const { me } = await api("/student/profile", { method: "PATCH", body: { username: v } });
-        v = me.username;
-      }
-    } catch (err) {
-      setNameError(err.message);
-      return;
-    }
-
-    localStorage.setItem("username", v);
-    const s = getStudent();
-    if (s) setStudent({ ...s, username: v });
-    setUsername(v);
-    setDraftName(v);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }
+  const level = student?.level || localStorage.getItem("level");
+  const programme = student?.courseOS || localStorage.getItem("courseOS");
 
   async function logout() {
     if (isDemo) {
@@ -276,132 +407,79 @@ export default function Settings() {
     navigate("/auth", { replace: true });
   }
 
-  const nameChanged = draftName.trim() && draftName.trim() !== username;
-  const totalCredits = courses.reduce((sum, c) => sum + (c.creditHours || 0), 0);
+  const sections = [
+    {
+      id: "profile",
+      title: "Profile",
+      icon: "user",
+      tone: "violet",
+      desc: "Update your username and keep your course of study and level up to date.",
+      meta: `${username} · ${regNumber}`,
+      lead: "Your identity across Nexus.",
+      sponsor: "Without Lynklens, none of this would be possible - your profile, your papers, all free for you.",
+    },
+    {
+      id: "courses",
+      title: "My Courses",
+      icon: "book",
+      tone: "blue",
+      desc: "Add or remove the courses that show up on your dashboard.",
+      meta: `${courses.length} course${courses.length === 1 ? "" : "s"}`,
+      lead: "Keep your course list in step with your timetable.",
+      sponsor: "Every course, every past paper, in your palm - brought to you by Lynklens.",
+    },
+    {
+      id: "notifications",
+      title: "Notifications",
+      icon: "bell",
+      tone: "peach",
+      desc: "Get alerted when new past questions are added to your courses.",
+      meta: "Stay in the loop",
+      lead: "Choose how Nexus reaches you.",
+      sponsor: "New materials reach your pocket the moment they land - thanks to Lynklens.",
+    },
+    {
+      id: "account",
+      title: "Account & security",
+      icon: "shield",
+      tone: "sage",
+      desc: "Your school email, password, and deleting your account.",
+      meta: "Keep your account safe",
+      lead: "Manage how you sign in to Nexus.",
+      sponsor: "Study safely. Lynklens checks every link before you click it.",
+    },
+  ];
 
-  // One-line summary shown in each tile's footer.
-  const meta = {
-    profile: `${username} · ${regNumber}`,
-    courses: `${courses.length} course${courses.length === 1 ? "" : "s"} · ${totalCredits} credit units`,
-    notifications: "Stay in the loop",
-    account: "Sign out of this device",
-  };
-
-  /* ---- hub ---- */
-  if (!section) {
+  function renderSection(section) {
+    if (section.id === "profile") return <ProfileSection student={student} />;
+    if (section.id === "courses") return <CoursesSection />;
+    if (section.id === "notifications") return <NotificationsCard />;
     return (
-      <div className="settings-page" key="hub">
-        <ScrollToTop />
-        <header className="set-hero">
-          <div>
-            <h1 className="set-title">Settings</h1>
-            <p className="set-lead">Manage your profile, courses and preferences.</p>
-          </div>
-        </header>
+      <AccountSecurity
+        role="student"
+        email={student?.email || "-"}
+        onSignOut={logout}
+      />
+    );
+  }
 
+  // Which tile is "level / programme" in the profile tile footer, when known.
+  if (programme && level) sections[0].meta = `${programme} · ${levelLabel(level)}`;
+
+  return (
+    <SettingsHub
+      title="Settings"
+      lead="Manage your profile, courses and preferences."
+      basePath="/settings"
+      sections={sections}
+      renderSection={renderSection}
+      banner={(
         <HeroBanner title="Make Nexus feel like yours.">
           Your name, your courses and your alerts - all in one calm place.
           <br />
           Change anything, any time.
         </HeroBanner>
-
-        <div className="set-grid">
-          {SECTIONS.map((s) => (
-            <Link
-              key={s.id}
-              to={`/settings?section=${s.id}`}
-              className={`set-tile tone-${s.tone}`}
-            >
-              <div className="set-tile-top">
-                <span className="set-tile-icon"><UiIcon name={s.icon} size={24} /></span>
-                <UiIcon name="arrow" size={20} className="set-tile-arrow" />
-              </div>
-              <h2 className="set-tile-title">{s.title}</h2>
-              <p className="set-tile-desc">{s.desc}</p>
-              <div className="set-tile-meta">{meta[s.id]}</div>
-            </Link>
-          ))}
-        </div>
-
-        <LynklensAd variant="banner" />
-      </div>
-    );
-  }
-
-  /* ---- section ---- */
-  return (
-    <div className="settings-page is-section" key={section.id}>
-      <ScrollToTop />
-      <BackLink to="/settings">All settings</BackLink>
-
-      <header className="set-hero">
-        <div>
-          <span className="set-eyebrow">{section.eyebrow}</span>
-          <h1 className="set-title">{section.title}</h1>
-          <p className="set-lead">{section.lead}</p>
-        </div>
-        <span className={`set-hero-icon tone-${section.tone}`}>
-          <UiIcon name={section.icon} size={26} />
-        </span>
-      </header>
-
-      {section.id === "profile" && (
-        <section className="set-card">
-          <div className="set-profile">
-            <div className="set-avatar">{initialsOf(username)}</div>
-            <div className="set-profile-meta">
-              <h2 className="set-profile-name">{username}</h2>
-              <p className="set-profile-reg">Reg No. {regNumber}</p>
-            </div>
-          </div>
-
-          <label className="set-label" htmlFor="set-name">
-            Username
-          </label>
-          <div className="set-name-row">
-            <input
-              id="set-name"
-              className="set-input"
-              placeholder="Enter your display name"
-              value={draftName}
-              onChange={(e) => setDraftName(e.target.value)}
-            />
-            <button
-              type="button"
-              className="set-btn-primary"
-              disabled={!nameChanged}
-              onClick={saveName}
-            >
-              Save
-            </button>
-          </div>
-          {saved && (
-            <p className="set-saved">
-              <UiIcon name="check" size={14} /> Saved
-            </p>
-          )}
-          {nameError && (
-            <p className="set-error" role="alert">
-              <UiIcon name="alert" size={14} /> {nameError}
-            </p>
-          )}
-        </section>
       )}
-
-      {section.id === "courses" && <CourseEditor />}
-
-      {section.id === "notifications" && <NotificationsCard hideTitle />}
-
-      {section.id === "account" && (
-        <AccountSecurity
-          role="student"
-          email={student?.email || "-"}
-          emailChanged={params.get("emailChanged") === "1"}
-          onSignOut={logout}
-        />
-      )}
-
-      <LynklensAd variant="note" message={section.sponsor} />
-    </div>
+    />
   );
 }

@@ -5,17 +5,41 @@
 //
 // The student's own record is kept by lib/studentAuth.js (so the older screens
 // can read it synchronously); the admin's record lives here.
+//
+// Both are remembered on this device, and the server is only ever allowed to
+// say "you are signed out" - a server that can't be reached (it restarts on
+// every code change while developing, or the connection drops) never is.
 
 import { useSyncExternalStore } from 'react'
 import { api } from './api'
 import { isDemo } from './demo'
 import { applyServerStudent } from './studentAuth'
 
-let state = { admin: null, pending: null, impersonating: null }
+const ADMIN_KEY = 'adminAuth'
+
+function readAdmin() {
+  try {
+    return JSON.parse(localStorage.getItem(ADMIN_KEY)) || null
+  } catch {
+    return null
+  }
+}
+
+function writeAdmin(admin) {
+  try {
+    if (admin) localStorage.setItem(ADMIN_KEY, JSON.stringify(admin))
+    else localStorage.removeItem(ADMIN_KEY)
+  } catch {
+    /* storage unavailable: the server session still works */
+  }
+}
+
+let state = { admin: isDemo ? null : readAdmin(), pending: null, impersonating: null }
 const listeners = new Set()
 
 function set(next) {
   state = { ...state, ...next }
+  if ("admin" in next) writeAdmin(state.admin)
   listeners.forEach(listener => listener())
 }
 
@@ -46,13 +70,27 @@ export async function refreshSession() {
   applyMe(await api('/me'))
 }
 
+// Couldn't reach the server (it is restarting, or offline): keep what this
+// device already knows and ask again shortly, rather than showing a sign-in.
+let retryTimer = 0
+function retryRefresh(attempt = 1) {
+  if (attempt > 12) return
+  clearTimeout(retryTimer)
+  retryTimer = setTimeout(async () => {
+    try {
+      await refreshSession()
+    } catch {
+      retryRefresh(attempt + 1)
+    }
+  }, Math.min(800 * attempt, 5000))
+}
+
 export async function bootSession() {
   if (isDemo) return
   try {
     await refreshSession()
   } catch {
-    // Offline or the server is down: keep whatever this device last knew, so a
-    // student can still open what they've already got.
+    retryRefresh()
   }
 }
 

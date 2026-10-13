@@ -8,13 +8,19 @@ import { Audit, Event, Paper, User } from '../models.js'
 import { env, need } from '../lib/env.js'
 import { fail, wrap } from '../lib/errors.js'
 import {
-  COOKIE, DELE_SECONDS, IMPERSONATE_SECONDS, clearCookie, clientIp, readCookie, setCookie, startSession,
+  COOKIE, DELE_SECONDS, IMPERSONATE_SECONDS, clearCookie, clientIp, readCookie, renewCookie, setCookie, startSession,
 } from '../lib/session.js'
 import { forget, limit } from '../lib/throttle.js'
 import { findCourse, pqKey, titleOf } from '../lib/courses.js'
-import { describePaper, nextVersion, parseSubmission } from '../lib/papers.js'
+import { describePaper, describePapers, nextVersion, parseSubmission, renumberVersions } from '../lib/papers.js'
 import { destroyFiles } from '../lib/cloudinary.js'
 import { announcePaper } from '../lib/notify.js'
+import { eraseAccount } from '../lib/accounts.js'
+import bcrypt from 'bcryptjs'
+import { facultyOf } from '../../src/data/faculties.js'
+import {
+  checkSchoolEmail, emailProblem, passwordProblem, roleProblem, usernameProblem,
+} from '../../src/lib/schoolEmail.js'
 
 const router = Router()
 
@@ -74,7 +80,11 @@ const needDele = (req, res, next) => {
   }
 }
 
-router.get('/me', needDele, (req, res) => res.json({ ok: true }))
+// Called each time the owner area opens: being here again restarts the 6-month clock.
+router.get('/me', needDele, (req, res) => {
+  renewCookie(req, res, COOKIE.dele)
+  res.json({ ok: true })
+})
 
 router.use(needDele)
 
@@ -106,7 +116,7 @@ router.get('/overview', wrap(async (req, res) => {
         },
       },
       { $sort: { downloads: -1 } },
-      { $limit: 10 },
+      { $limit: 100 },
     ]),
     Event.aggregate([
       { $match: { ...inWindow, paperId: { $ne: null } } },
@@ -121,7 +131,7 @@ router.get('/overview', wrap(async (req, res) => {
       },
       { $addFields: { score: { $add: ['$downloads', '$opens'] } } },
       { $sort: { score: -1, seconds: -1 } },
-      { $limit: 12 },
+      { $limit: 100 },
     ]),
     Event.aggregate([
       { $match: { ...inWindow, type: 'read', paperId: { $ne: null } } },
@@ -133,13 +143,13 @@ router.get('/overview', wrap(async (req, res) => {
         },
       },
       { $sort: { last: -1 } },
-      { $limit: 40 },
+      { $limit: 200 },
     ]),
     Event.aggregate([
       { $match: { ...inWindow, type: 'link' } },
       { $group: { _id: { label: '$label', url: '$url' }, clicks: { $sum: 1 }, last: { $max: '$at' } } },
       { $sort: { clicks: -1 } },
-      { $limit: 20 },
+      { $limit: 100 },
     ]),
     Event.aggregate([
       { $match: { ...inWindow, type: { $in: ['download', 'open'] } } },
@@ -169,7 +179,7 @@ router.get('/overview', wrap(async (req, res) => {
         },
       },
       { $sort: { seconds: -1 } },
-      { $limit: 15 },
+      { $limit: 100 },
     ]),
     Event.aggregate([
       { $match: { type: 'active', at: { $gte: recently } } },
@@ -245,7 +255,7 @@ router.get('/papers', wrap(async (req, res) => {
   if (req.query.course) filter.courseKey = pqKey(String(req.query.course))
 
   const papers = await Paper.find(filter).sort({ createdAt: -1 }).limit(300)
-  res.json({ papers: papers.map(describePaper) })
+  res.json({ papers: await describePapers(papers) })
 }))
 
 router.get('/next-version', wrap(async (req, res) => {
@@ -274,31 +284,59 @@ router.post('/papers', wrap(async (req, res) => {
   res.status(201).json({ paper: describePaper(paper) })
 }))
 
+// Approve / reject a paper, and/or choose which public version it is.
+// Versions only exist among papers students can see: the first is v1 (no
+// suffix), the rest v2, v3... Choosing a version swaps it with whoever has it.
 router.patch('/papers/:id', wrap(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw fail(404, 'NO_PAPER', "That paper doesn't exist any more.")
-  const status = req.body?.status
-  if (!['approved', 'rejected', 'pending'].includes(status)) {
+
+  const { status, version } = req.body || {}
+  if (status === undefined && version === undefined) {
+    throw fail(400, 'BAD_REQUEST', 'Choose approve, reject, or a version for this paper.')
+  }
+  if (status !== undefined && !['approved', 'rejected', 'pending'].includes(status)) {
     throw fail(400, 'BAD_STATUS', 'Choose approve or reject.')
   }
 
-  const paper = await Paper.findById(req.params.id)
+  let paper = await Paper.findById(req.params.id)
   if (!paper) throw fail(404, 'NO_PAPER', "That paper doesn't exist any more - refresh the list.")
 
   const becameLive = status === 'approved' && paper.status !== 'approved'
 
-  if (becameLive) {
-    // Two approved papers can't share "PHY 101 2023/2024" - the later one becomes the next version.
-    const clash = await Paper.exists({
-      _id: { $ne: paper._id }, courseKey: paper.courseKey, session: paper.session,
-      version: paper.version, status: 'approved',
-    })
-    if (clash) paper.version = await nextVersion(paper.courseKey, paper.session)
+  if (status !== undefined) {
+    // A paper that goes public joins as the last version of its course + session.
+    if (becameLive) paper.version = await nextVersion(paper.courseKey, paper.session)
+    paper.status = status
+    paper.reviewedAt = new Date()
+    await paper.save()
   }
 
-  paper.status = status
-  paper.reviewedAt = new Date()
-  await paper.save()
+  // Close any gap left by a paper leaving (or joining) the public versions.
+  await renumberVersions(paper.courseKey, paper.session)
 
+  if (version !== undefined) {
+    if (paper.status !== 'approved') {
+      throw fail(400, 'NOT_PUBLIC', 'Only a paper students can see has a version. Approve it first, then choose its version.')
+    }
+
+    const live = await Paper.find({ courseKey: paper.courseKey, session: paper.session, status: 'approved' })
+      .sort({ version: 1, createdAt: 1 })
+    const wanted = Number(version)
+    if (!Number.isInteger(wanted) || wanted < 1 || wanted > live.length) {
+      throw fail(400, 'BAD_VERSION', `Choose a version from 1 to ${live.length} - that is how many are public for this course and year.`)
+    }
+
+    const mine = live.find(p => String(p._id) === String(paper._id))
+    const holder = live.find(p => p.version === wanted && String(p._id) !== String(paper._id))
+    if (holder) {
+      holder.version = mine.version
+      await holder.save()
+    }
+    mine.version = wanted
+    await mine.save()
+  }
+
+  paper = await Paper.findById(paper._id)
   if (becameLive) await announcePaper(paper)
   res.json({ paper: describePaper(paper) })
 }))
@@ -310,6 +348,7 @@ router.delete('/papers/:id', wrap(async (req, res) => {
 
   // Uploaded files are removed from Cloudinary too; the original static PDFs stay on disk.
   if (paper.source !== 'seed') await destroyFiles(paper.files)
+  await renumberVersions(paper.courseKey, paper.session)
   res.json({ ok: true })
 }))
 
@@ -338,6 +377,37 @@ router.get('/compare/courses', wrap(async (req, res) => {
   })
 }))
 
+// Every upload of every course in one go: courses A-Z, and inside each course
+// the newest session first (versions of the same session stay together).
+// Newest session first; inside a session the public versions in order, then the rest.
+const STATUS_ORDER = { approved: 0, pending: 1, rejected: 2 }
+const listOrder = (a, b) =>
+  b.session.localeCompare(a.session)
+  || STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+  || a.version - b.version
+  || new Date(a.createdAt) - new Date(b.createdAt)
+
+router.get('/compare/all', wrap(async (req, res) => {
+  const found = await Paper.find({}).sort({ courseKey: 1, session: -1, version: 1, createdAt: 1 })
+  const papers = await describePapers(found)
+  const byCourse = new Map()
+
+  for (const paper of papers) {
+    if (!byCourse.has(paper.courseKey)) {
+      byCourse.set(paper.courseKey, {
+        key: paper.courseKey,
+        code: paper.courseCode,
+        title: findCourse(paper.courseCode)?.title || '',
+        papers: [],
+      })
+    }
+    byCourse.get(paper.courseKey).papers.push(paper)
+  }
+
+  for (const course of byCourse.values()) course.papers.sort(listOrder)
+  res.json({ courses: [...byCourse.values()] })
+}))
+
 // Every upload for one course, oldest session first, one long list.
 router.get('/compare', wrap(async (req, res) => {
   const key = pqKey(String(req.query.course || ''))
@@ -348,11 +418,59 @@ router.get('/compare', wrap(async (req, res) => {
 
   res.json({
     course: { key, code: course?.code || papers[0]?.courseCode || key, title: course?.title || '' },
-    papers: papers.map(describePaper),
+    papers: (await describePapers(papers)).sort(listOrder),
   })
 }))
 
 /* ---------------------------------- users --------------------------------- */
+
+// Create a staff (admin) account without the Google step, so the owner can use
+// the staff side before a real staff address exists. It starts out verified and
+// is marked as owner-made; delete it later to let the real person sign up.
+router.post('/users/staff', wrap(async (req, res) => {
+  const { name, email, department, password } = req.body || {}
+
+  const checked = checkSchoolEmail(email)
+  if (!checked.ok) throw fail(400, 'BAD_EMAIL', emailProblem(checked.reason))
+  if (checked.kind !== 'staff') throw fail(400, 'STUDENT_EMAIL_ON_ADMIN', roleProblem('admin', 'student'))
+
+  const problem = usernameProblem(name) || passwordProblem(password)
+  if (problem) throw fail(400, 'BAD_DETAILS', problem)
+
+  const faculty = facultyOf(String(department || ''))
+  if (!faculty) throw fail(400, 'BAD_DEPARTMENT', 'Choose the department from the list.')
+
+  if (await User.exists({ email: checked.email, role: 'admin' })) {
+    throw fail(
+      409,
+      'ACCOUNT_EXISTS',
+      `There is already an admin account for ${checked.email}. Erase it first if you want to create it again.`
+    )
+  }
+
+  const user = await User.create({
+    email: checked.email,
+    role: 'admin',
+    username: String(name).trim(),
+    passwordHash: await bcrypt.hash(String(password), 10),
+    status: 'verified',
+    verifiedAt: new Date(),
+    department: String(department),
+    faculty,
+    createdByOwner: true,
+  })
+
+  await Audit.create({
+    action: 'create-staff', targetId: user._id, targetEmail: user.email, targetRole: 'admin', ip: clientIp(req),
+  })
+
+  res.status(201).json({
+    user: {
+      id: String(user._id), email: user.email, role: user.role, username: user.username,
+      department: user.department, status: user.status, createdByOwner: true,
+    },
+  })
+}))
 
 router.get('/users', wrap(async (req, res) => {
   const filter = {}
@@ -364,8 +482,12 @@ router.get('/users', wrap(async (req, res) => {
     filter.$or = [{ email: pattern }, { username: pattern }]
   }
 
-  const users = await User.find(filter).sort({ createdAt: -1 }).limit(200)
+  const [users, roleCounts] = await Promise.all([
+    User.find(filter).sort({ createdAt: -1 }).limit(200),
+    User.aggregate([{ $group: { _id: '$role', n: { $sum: 1 } } }]),
+  ])
   const ids = users.map(u => u._id)
+  const inRole = role => roleCounts.find(r => r._id === role)?.n || 0
 
   const stats = ids.length
     ? await Event.aggregate([
@@ -383,6 +505,8 @@ router.get('/users', wrap(async (req, res) => {
   const statsOf = id => stats.find(s => String(s._id) === String(id)) || {}
 
   res.json({
+    // Whole-site totals for the tabs, whatever the search or tab is showing.
+    counts: { all: inRole('student') + inRole('admin'), student: inRole('student'), admin: inRole('admin') },
     users: users.map(u => ({
       id: String(u._id),
       email: u.email,
@@ -392,6 +516,7 @@ router.get('/users', wrap(async (req, res) => {
       programme: u.programme || null,
       level: u.level || null,
       department: u.department || null,
+      createdByOwner: Boolean(u.createdByOwner),
       createdAt: u.createdAt,
       lastLoginAt: u.lastLoginAt || null,
       lastSeenAt: u.lastSeenAt || null,
@@ -423,8 +548,11 @@ router.post('/impersonate', wrap(async (req, res) => {
 
 router.delete('/users/:id', wrap(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw fail(404, 'NO_USER', "That account doesn't exist any more.")
-  const user = await User.findByIdAndDelete(req.params.id)
+  const user = await User.findById(req.params.id)
   if (!user) throw fail(404, 'NO_USER', 'That account was already deleted - refresh the list.')
+
+  // Gone completely: the same email can sign up again as a brand-new person.
+  await eraseAccount(user)
   await Audit.create({ action: 'delete-user', targetId: user._id, targetEmail: user.email, targetRole: user.role, ip: clientIp(req) })
   res.json({ ok: true })
 }))

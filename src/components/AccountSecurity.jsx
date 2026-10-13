@@ -1,49 +1,58 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { api } from '../lib/api'
-import { EXAMPLE_STAFF_EMAIL, EXAMPLE_STUDENT_EMAIL, checkSchoolEmail, emailProblem, passwordProblem, roleProblem } from '../lib/schoolEmail'
+import { signOut } from '../lib/session'
+import {
+  EXAMPLE_STAFF_EMAIL, EXAMPLE_STUDENT_EMAIL,
+  checkSchoolEmail, emailProblem, passwordProblem, roleProblem,
+} from '../lib/schoolEmail'
+import PasswordInput from './PasswordInput'
+import { SetRow, SetSection } from './SetSection'
 import UiIcon from './UiIcon'
 
-// The "Account" part of Settings for both students and staff: change the school
-// email (re-confirmed with Google), change the password, sign out.
-// Render it inside a `.settings-page` so the Settings styles apply.
-export default function AccountSecurity({ role, email, emailChanged, onSignOut }) {
+// The "Account & security" section of Settings, for students and staff:
+// school email (changed through Google), password, signing out, and deleting
+// the account. Render it inside a `.settings-page` so the Settings styles apply.
+export default function AccountSecurity({ role, email, onSignOut }) {
+  const [params] = useSearchParams()
+  const emailChanged = params.get('emailChanged') === '1'
+
   return (
     <>
       {emailChanged && (
-        <section className="set-card set-card-ok" role="status">
-          <p className="set-saved" style={{ margin: 0 }}>
-            <UiIcon name="check" size={14} /> Your school email has been changed and confirmed with Google.
-          </p>
-        </section>
+        <p className="set-flash" role="status">
+          <UiIcon name="check" size={15} /> Your school email was changed and confirmed with Google.
+        </p>
       )}
+
       <EmailCard role={role} email={email} />
       <PasswordCard role={role} />
-      <section className="set-card">
-        <p className="set-card-sub">Sign out of Nexus on this device.</p>
-        <button type="button" className="set-btn-danger" onClick={onSignOut}>
-          <UiIcon name="logout" size={17} /> Log out
-        </button>
-      </section>
+
+      <SetSection title="Sign out" sub="End your session on this device.">
+        <SetRow
+          title="Log out of this device"
+          desc="You can sign back in any time with your school email and password."
+          action={(
+            <button type="button" className="set-btn-ghost" onClick={onSignOut}>
+              <UiIcon name="logout" size={16} /> Log out
+            </button>
+          )}
+        />
+      </SetSection>
+
+      <DeleteCard role={role} />
     </>
   )
 }
 
-function Message({ error, saved }) {
-  if (error) {
-    return (
-      <p className="set-error" role="alert">
-        <UiIcon name="alert" size={14} /> {error}
-      </p>
-    )
-  }
-  if (saved) {
-    return (
-      <p className="set-saved">
-        <UiIcon name="check" size={14} /> {saved}
-      </p>
-    )
-  }
-  return null
+function Status({ type, children }) {
+  if (!children) return null
+  return (
+    <p className={`set-status is-${type}`} role={type === 'err' ? 'alert' : 'status'}>
+      <UiIcon name={type === 'ok' ? 'check' : 'alert'} size={14} />
+      <span>{children}</span>
+    </p>
+  )
 }
 
 function EmailCard({ role, email }) {
@@ -71,15 +80,15 @@ function EmailCard({ role, email }) {
   }
 
   return (
-    <form className="set-card" onSubmit={submit} noValidate>
-      <h2 className="set-card-title">School email</h2>
-      <p className="set-card-sub">
-        Signed in as <strong>{email}</strong>. To change it, enter the new @topfaith.edu.ng address -
-        you'll confirm it with Google before it takes effect.
-      </p>
-
-      <label className="set-label" htmlFor="set-new-email">New school email</label>
-      <div className="set-name-row">
+    <SetSection
+      as="form"
+      onSubmit={submit}
+      noValidate
+      title="School email"
+      sub={<>Signed in as <strong>{email}</strong>. To change it, enter the new @topfaith.edu.ng address - you'll confirm it with Google before it takes effect.</>}
+    >
+      <div className="set-body">
+        <label className="set-label" htmlFor="set-new-email">New school email</label>
         <input
           id="set-new-email"
           className="set-input"
@@ -89,12 +98,14 @@ function EmailCard({ role, email }) {
           onChange={e => setValue(e.target.value)}
           autoComplete="email"
         />
+        <Status type="err">{error}</Status>
+      </div>
+      <div className="set-foot">
         <button type="submit" className="set-btn-primary" disabled={busy || !value.trim()}>
           {busy ? 'Opening Google…' : 'Verify with Google'}
         </button>
       </div>
-      <Message error={error} />
-    </form>
+    </SetSection>
   )
 }
 
@@ -131,26 +142,99 @@ function PasswordCard({ role }) {
   }
 
   return (
-    <form className="set-card" onSubmit={submit} noValidate>
-      <h2 className="set-card-title">Change password</h2>
-      <p className="set-card-sub">Use at least 8 characters.</p>
+    <SetSection as="form" onSubmit={submit} noValidate title="Change password" sub="Use at least 8 characters.">
+      <div className="set-body">
+        <div className="set-field">
+          <label className="set-label" htmlFor="pw-current">Current password</label>
+          <PasswordInput id="pw-current" value={current} onChange={setCurrent} autoComplete="current-password" />
+        </div>
+        <div className="set-field">
+          <label className="set-label" htmlFor="pw-new">New password</label>
+          <PasswordInput id="pw-new" value={next} onChange={setNext} autoComplete="new-password" />
+        </div>
+        <div className="set-field">
+          <label className="set-label" htmlFor="pw-again">Repeat new password</label>
+          <PasswordInput id="pw-again" value={again} onChange={setAgain} autoComplete="new-password" />
+        </div>
+        <Status type="err">{error}</Status>
+        <Status type="ok">{saved}</Status>
+      </div>
+      <div className="set-foot">
+        <button type="submit" className="set-btn-primary" disabled={busy}>
+          {busy ? 'Saving…' : 'Change password'}
+        </button>
+      </div>
+    </SetSection>
+  )
+}
 
-      <label className="set-label" htmlFor="set-cur-pass">Current password</label>
-      <input id="set-cur-pass" className="set-input" type="password" value={current}
-        onChange={e => setCurrent(e.target.value)} autoComplete="current-password" style={{ width: '100%', marginBottom: 14 }} />
+// The Danger Zone: a red box, one row per irreversible thing. Deleting expands
+// in place so what will happen is read before the password is asked for.
+function DeleteCard({ role }) {
+  const [open, setOpen] = useState(false)
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
 
-      <label className="set-label" htmlFor="set-new-pass">New password</label>
-      <input id="set-new-pass" className="set-input" type="password" value={next}
-        onChange={e => setNext(e.target.value)} autoComplete="new-password" style={{ width: '100%', marginBottom: 14 }} />
+  async function erase(e) {
+    e.preventDefault()
+    setError('')
+    if (!password) return setError('Type your password to confirm.')
 
-      <label className="set-label" htmlFor="set-again-pass">Repeat new password</label>
-      <input id="set-again-pass" className="set-input" type="password" value={again}
-        onChange={e => setAgain(e.target.value)} autoComplete="new-password" style={{ width: '100%', marginBottom: 16 }} />
+    setBusy(true)
+    try {
+      await api(`/${role}/account`, { method: 'DELETE', body: { password } })
+      try { localStorage.removeItem('pqReading') } catch { /* nothing to clear */ }
+      await signOut(role).catch(() => {})
+      // A full load, so nothing from the old account is left in memory.
+      window.location.assign(role === 'admin' ? '/admin' : '/auth')
+    } catch (err) {
+      setError(err.message)
+      setBusy(false)
+    }
+  }
 
-      <button type="submit" className="set-btn-primary" disabled={busy}>
-        {busy ? 'Saving…' : 'Change password'}
-      </button>
-      <Message error={error} saved={saved} />
-    </form>
+  return (
+    <SetSection danger title="Danger zone" sub="Be careful this can't be undone.">
+      <SetRow
+        title="Delete this account"
+        desc="Permanently remove your Nexus account, course list and reading history."
+        action={!open && (
+          <button type="button" className="set-btn-danger" onClick={() => setOpen(true)}>
+            Delete this account
+          </button>
+        )}
+      />
+
+      {open && (
+        <form className="set-body" onSubmit={erase} noValidate>
+          <ul className="set-danger-list">
+            <li>Your {role === 'admin' ? 'admin' : 'student'} account, course list and reading history are erased.</li>
+            <li>Papers you uploaded stay for other students, but no longer show your name.</li>
+            <li>You can sign up again with the same school email whenever you like.</li>
+          </ul>
+
+          <div className="set-field">
+            <label className="set-label" htmlFor="pw-delete">Type your password to confirm</label>
+            <PasswordInput id="pw-delete" value={password} onChange={setPassword} autoComplete="current-password" autoFocus />
+          </div>
+
+          <div className="set-actions" style={{ marginTop: 0 }}>
+            <button type="submit" className="set-btn-danger is-solid" disabled={busy}>
+              {busy ? 'Deleting…' : 'Permanently delete my account'}
+            </button>
+            <button
+              type="button"
+              className="set-btn-ghost"
+              disabled={busy}
+              onClick={() => { setOpen(false); setPassword(''); setError('') }}
+            >
+              Keep my account
+            </button>
+          </div>
+          <Status type="err">{error}</Status>
+        </form>
+      )}
+    </SetSection>
   )
 }

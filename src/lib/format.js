@@ -36,3 +36,11 @@ export function timeAgo(iso) {
 }
 
 export const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+// "Daniel Bamidele" -> "DB", "Dele" -> "D"
+export function initialsOf(name) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}

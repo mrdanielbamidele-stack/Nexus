@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser'
 import { connectDb } from './db.js'
 import { ensureSeeded } from './seed.js'
 import { env } from './lib/env.js'
+import { verify } from './lib/session.js'
 import { errorHandler, fail, notFoundHandler, wrap } from './lib/errors.js'
 import authRoutes from './routes/auth.js'
 import { adminRouter, meRouter, studentRouter } from './routes/account.js'
@@ -87,13 +88,22 @@ export function createApp() {
       await connectDb()
       await ensureSeeded()
     } catch (err) {
-      if (err?.code === 'NOT_CONFIGURED') throw err
-      console.error('[api] database unavailable:', err.message)
-      throw fail(
-        503,
-        'DB_DOWN',
-        "Nexus can't reach its database right now. Please try again in a minute. If it keeps happening, tell us through Contact."
-      )
+      const problem = err?.code === 'NOT_CONFIGURED'
+        ? err
+        : fail(
+            503,
+            'DB_DOWN',
+            "Nexus can't reach its database right now. Please try again in a minute. If it keeps happening, tell us through Contact."
+          )
+      if (err?.code !== 'NOT_CONFIGURED') console.error('[api] database unavailable:', err.message)
+
+      // Google sends the browser here as a normal page visit, so a JSON error
+      // would be shown raw. Send them back to the sign-in screen with the message.
+      if (req.method === 'GET' && req.path.startsWith('/auth/google/')) {
+        const staff = req.query.role === 'admin' || verify(String(req.query.state || ''))?.role === 'admin'
+        return res.redirect(`${staff ? '/admin' : '/auth'}?error=${encodeURIComponent(problem.message)}`)
+      }
+      throw problem
     }
     next()
   }))

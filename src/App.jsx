@@ -15,7 +15,6 @@ import AdminSettings from './pages/admin/AdminSettings'
 import DeleGate from './pages/dele/DeleGate'
 import DeleOverview from './pages/dele/DeleOverview'
 import DelePapers from './pages/dele/DelePapers'
-import DeleUpload from './pages/dele/DeleUpload'
 import DeleCompare from './pages/dele/DeleCompare'
 import DeleUsers from './pages/dele/DeleUsers'
 import NotFound from './pages/NotFound'
@@ -54,15 +53,18 @@ export default function App() {
       <Route path="/delealone" element={<DeleGate />}>
         <Route index element={<DeleOverview />} />
         <Route path="papers" element={<DelePapers />} />
-        <Route path="upload" element={<DeleUpload />} />
+        <Route path="upload" element={<Upload variant="owner" />} />
         <Route path="compare" element={<DeleCompare />} />
         <Route path="users" element={<DeleUsers />} />
       </Route>
 
-      {/* Upload -open to everyone; signed-in students get the sidebar layout */}
-      <Route path="/upload" element={<UploadShell />}>
-        <Route index element={<Upload />} />
-      </Route>
+      {/* Upload -open to everyone; signed-in students get the sidebar layout.
+          Not in the demo: /demo/upload doesn't exist there (it shows the 404 page). */}
+      {!isDemo && (
+        <Route path="/upload" element={<UploadShell />}>
+          <Route index element={<Upload />} />
+        </Route>
+      )}
 
       {/* Main app with sidebar layout -requires a signed-in student */}
       <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>

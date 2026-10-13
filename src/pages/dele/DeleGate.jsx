@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { NavLink, Outlet } from 'react-router'
+import { NavLink, Outlet, useLocation } from 'react-router'
 import { api } from '../../lib/api'
+import PasswordInput from '../../components/PasswordInput'
+import UiIcon from '../../components/UiIcon'
 import { DeleContext } from './deleContext'
 import { DeleShellSkeleton } from './DeleSkeletons'
 import './Dele.css'
@@ -13,14 +15,45 @@ const TABS = [
   { to: '/delealone/users', label: 'Users' },
 ]
 
-// /delealone: two passwords, then the owner's control room.
+// /delealone: two passwords, then the owner's control room. Once in, it is
+// the same app frame the students see (sidebar + page), just with owner pages.
 export default function DeleGate() {
-  const [state, setState] = useState('checking') // checking | out | in
+  const [state, setState] = useState('checking') // checking | out | in | offline
+  const [menuOpen, setMenuOpen] = useState(false)
+  const { pathname } = useLocation()
 
+  // Only the server saying "your owner session has ended" shows the password
+  // screen. If it simply can't be reached (it restarts after every code change
+  // while developing), say so and keep asking - the session is still good.
   useEffect(() => {
     document.title = 'Owner - Nexus'
-    api('/dele/me').then(() => setState('in')).catch(() => setState('out'))
+    let cancelled = false
+    let timer = 0
+
+    async function check() {
+      try {
+        await api('/dele/me')
+        if (!cancelled) setState('in')
+      } catch (err) {
+        if (cancelled) return
+        if (err.code === 'DELE_SIGNED_OUT') {
+          setState('out')
+        } else {
+          setState('offline')
+          timer = setTimeout(check, 2000)
+        }
+      }
+    }
+
+    check()
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [])
+
+  // A new page closes the phone menu.
+  useEffect(() => setMenuOpen(false), [pathname])
 
   const call = useCallback(async (path, options) => {
     try {
@@ -40,26 +73,65 @@ export default function DeleGate() {
 
   if (state === 'checking') return <DeleShellSkeleton />
 
+  if (state === 'offline') {
+    return (
+      <div className="dl-center">
+        <div className="dl-login" role="status">
+          <div className="logo">
+            <span className="logo-badge">N</span>
+            Nexus
+          </div>
+          <h1>Reconnecting…</h1>
+          <p>Nexus can't be reached for a moment. You're still signed in - this will try again by itself.</p>
+        </div>
+      </div>
+    )
+  }
+
   if (state === 'out') return <DeleLogin onDone={() => setState('in')} />
 
   return (
     <DeleContext.Provider value={context}>
-      <div className="dl-shell">
-        <header className="dl-top">
-          <div className="dl-brand">
-            <span className="dl-badge">N</span>
-            <span>Nexus Owner</span>
+      <div className="app dl-app">
+        {/* Hamburger + dark overlay: phones only (same as the student site) */}
+        <button
+          type="button"
+          className={`menu-btn ${menuOpen ? 'hidden' : ''}`}
+          onClick={() => setMenuOpen(true)}
+          aria-label="Open menu"
+        >
+          ☰
+        </button>
+        <div className={`overlay ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen(false)} />
+
+        <aside className={`sidebar ${menuOpen ? 'active' : ''}`} id="sidebar">
+          <div className="logo">
+            <span className="logo-badge">N</span>
+            Nexus
           </div>
-          <nav className="dl-tabs">
+
+          <nav className="nav">
             {TABS.map(tab => (
-              <NavLink key={tab.to} to={tab.to} end={tab.end} className={({ isActive }) => `dl-tab${isActive ? ' on' : ''}`}>
+              <NavLink
+                key={tab.to}
+                to={tab.to}
+                end={tab.end}
+                className={({ isActive }) => (isActive ? 'active' : '')}
+              >
                 {tab.label}
               </NavLink>
             ))}
           </nav>
-          <button type="button" className="dl-btn ghost" onClick={logout}>Sign out</button>
-        </header>
-        <main className="dl-main">
+
+          {/* The foot of the sidebar, where leaving belongs */}
+          <div className="dl-side-foot">
+            <button type="button" className="dl-signout" onClick={logout}>
+              <UiIcon name="logout" size={18} /> Sign out
+            </button>
+          </div>
+        </aside>
+
+        <main className="main">
           <Outlet />
         </main>
       </div>
@@ -90,17 +162,20 @@ function DeleLogin({ onDone }) {
   return (
     <div className="dl-center">
       <form className="dl-login" onSubmit={submit}>
-        <span className="dl-badge big">N</span>
+        <div className="logo">
+          <span className="logo-badge">N</span>
+          Nexus
+        </div>
         <h1>Owner area</h1>
         <p>Enter both passwords to continue.</p>
 
         <label>
           Password 1
-          <input type="password" value={first} onChange={e => setFirst(e.target.value)} autoComplete="off" autoFocus />
+          <PasswordInput value={first} onChange={setFirst} autoComplete="off" autoFocus />
         </label>
         <label>
           Password 2
-          <input type="password" value={second} onChange={e => setSecond(e.target.value)} autoComplete="off" />
+          <PasswordInput value={second} onChange={setSecond} autoComplete="off" />
         </label>
 
         {error && <p className="dl-error" role="alert">{error}</p>}

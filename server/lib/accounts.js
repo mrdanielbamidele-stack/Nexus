@@ -2,8 +2,25 @@
 // explanations for "that account isn't there".
 
 import { fail } from './errors.js'
-import { User } from '../models.js'
+import { Event, Paper, Throttle, User } from '../models.js'
 import { roleProblem } from '../../src/lib/schoolEmail.js'
+
+const escapeRegex = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// Remove an account completely, so the same email can sign up again as a
+// brand-new person: the account, its usage history and its sign-in lockouts.
+// Papers it uploaded stay (students are using them) but no longer name anyone.
+export async function eraseAccount(user) {
+  await Promise.all([
+    Event.deleteMany({ userId: user._id }),
+    Paper.updateMany(
+      { uploaderId: user._id },
+      { $set: { uploaderId: null, uploaderName: null, uploaderEmail: null, uploaderRole: null } }
+    ),
+    Throttle.deleteMany({ _id: new RegExp(`^login:.*:${escapeRegex(user.email)}$`) }),
+  ])
+  await User.deleteOne({ _id: user._id })
+}
 
 export const roleName = role => (role === 'admin' ? 'admin' : 'student')
 

@@ -1,33 +1,48 @@
 // src/components/NotificationsCard.jsx
-// Settings card to turn background (OS) push on/off for THIS device, with a
-// clear iOS explainer - because on iPhone, push only works after the site is
-// installed to the Home Screen. This is the piece that makes notifications
-// reach phones, not just laptops.
+// The Notifications section of Settings.
+//
+//   In-app alerts      the bell - works on every device, nothing to set up
+//   Background alerts  real OS notifications (Web Push) for THIS device
+//   Install Nexus      the native "add to home screen" prompt, when available
+//
+// iPhone/iPad only deliver push to a site that has been added to the Home
+// Screen, so there the switch is replaced by the steps to do that - this is
+// the piece that makes notifications reach phones, not just laptops.
 
 import { useEffect, useState } from "react";
 import UiIcon from "./UiIcon";
+import { SetRow, SetSection } from "./SetSection";
 import {
   pushSupported,
   isPushEnabled,
   enablePush,
   disablePush,
   iosNeedsInstall,
-  isIos,
   canInstall,
   promptInstall,
   INSTALLABLE_EVENT,
 } from "../lib/push";
 
-// `hideTitle` drops the heading when the page already shows one (Settings
-// section view); the explainer line stays.
-export default function NotificationsCard({ hideTitle = false }) {
+const FAILURES = {
+  "ios-needs-install":
+    "On iPhone/iPad, first tap Share → Add to Home Screen, open Nexus from there, then switch this on.",
+  denied:
+    "Notifications are blocked for this site. Tap the lock icon next to the web address, set Notifications to Allow, then switch this on again. (On a phone, it's in the browser's site settings.)",
+  "no-vapid": "Background alerts aren't switched on for Nexus yet. Please tell us through Contact.",
+  "save-failed": "We couldn't register this device just now. Please try again in a moment.",
+  unsupported: "This browser can't show background notifications. You'll still see the in-app bell.",
+  error: "We couldn't turn alerts on. Please try again.",
+};
+
+export default function NotificationsCard() {
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState(null); // { type: 'ok'|'warn'|'err', text }
+  const [msg, setMsg] = useState(null); // { type: 'ok' | 'warn' | 'err', text }
   const [installable, setInstallable] = useState(canInstall());
 
   const supported = pushSupported();
   const needsInstall = iosNeedsInstall();
+  const canToggle = supported && !needsInstall;
 
   useEffect(() => {
     isPushEnabled().then(setEnabled);
@@ -37,11 +52,11 @@ export default function NotificationsCard({ hideTitle = false }) {
     return () => window.removeEventListener(INSTALLABLE_EVENT, sync);
   }, []);
 
-  async function installApp() {
+  async function install() {
     const outcome = await promptInstall();
     setInstallable(canInstall());
     if (outcome === "accepted") {
-      setMsg({ type: "ok", text: "Nexus installed. Open it from your home screen / apps." });
+      setMsg({ type: "ok", text: "Nexus installed. Open it from your home screen or apps." });
     }
   }
 
@@ -52,23 +67,12 @@ export default function NotificationsCard({ hideTitle = false }) {
     setBusy(false);
     if (res.ok) {
       setEnabled(true);
-      setMsg({ type: "ok", text: "Background notifications are on for this device." });
+      setMsg({ type: "ok", text: "Background alerts are on for this device." });
       return;
     }
-    const text = {
-      "ios-needs-install":
-        "On iPhone/iPad, first tap Share → Add to Home Screen, open Nexus from there, then enable.",
-      denied:
-        "Notifications are blocked for this site. Tap the lock/settings icon next to the web address, set Notifications to Allow, then tap Enable again. (On a phone, it's in the browser's site settings.)",
-      "no-vapid": "Push isn't configured yet (missing VAPID key). Contact the admin.",
-      "save-failed":
-        "Couldn't register this device (server rejected it). Please try again later.",
-      unsupported: "This browser doesn't support background notifications.",
-      error: "Couldn't enable notifications. Please try again.",
-    }[res.reason];
     setMsg({
       type: res.reason === "denied" || res.reason === "save-failed" ? "err" : "warn",
-      text,
+      text: FAILURES[res.reason] || FAILURES.error,
     });
   }
 
@@ -77,105 +81,81 @@ export default function NotificationsCard({ hideTitle = false }) {
     await disablePush();
     setEnabled(false);
     setBusy(false);
-    setMsg({ type: "ok", text: "Background notifications turned off for this device." });
+    setMsg({ type: "ok", text: "Background alerts are off for this device." });
   }
 
+  const description = needsInstall
+    ? "Needs Nexus on your home screen first - see the steps below."
+    : !supported
+      ? "This browser can't show alerts while Nexus is closed."
+      : enabled
+        ? "On for this device. You'll be notified even when Nexus is closed."
+        : "Get a notification on this device even when Nexus is closed.";
+
   return (
-    <section className="set-card">
-      {!hideTitle && (
-        <h2 className="set-card-title">
-          <UiIcon name="bell" size={18} /> Notifications
-        </h2>
-      )}
-      <p className="set-card-sub">
-        Get alerted the moment new past questions are added to your courses.
-        The in-app bell always works; turn on background alerts to be notified
-        even when Nexus is closed.
-      </p>
+    <>
+      <SetSection title="Alerts" sub="How you hear about new past questions for the courses you take.">
+        <SetRow
+          title="In-app alerts"
+          desc="The bell in the top corner lights up when a paper is added to one of your courses."
+          action={<span className="set-badge">Always on</span>}
+        />
 
-      {/* One-tap install (Android/desktop Chrome/Edge). Triggers the native
-          "Add to Home Screen / Install" dialog directly - no manual steps. */}
-      {installable && (
-        <button
-          type="button"
-          className="set-btn-primary"
-          onClick={installApp}
-          style={{ marginBottom: 10 }}
-        >
-          <UiIcon name="download" size={17} /> Add Nexus to home screen
-        </button>
-      )}
-
-      {/* On iOS the push APIs don't exist until the app is installed, so the
-          install guide must come BEFORE the generic "unsupported" message. */}
-      {needsInstall ? (
-        <div
-          style={{
-            background: "#f5f3ff",
-            border: "1px solid #ddd6fe",
-            borderRadius: 10,
-            padding: "12px 14px",
-            fontSize: 13.5,
-            color: "#4c1d95",
-            lineHeight: 1.5,
-          }}
-        >
-          <strong>One step on iPhone/iPad:</strong> Apple only delivers push to
-          installed apps. In Safari, tap the{" "}
-          <UiIcon name="download" size={14} /> <strong>Share</strong>{" "}
-          button, scroll down and choose <strong>Add to Home Screen</strong>, then
-          open <strong>Nexus</strong> from your Home Screen and come back to this
-          page to turn alerts on.
-        </div>
-      ) : !supported ? (
-        <p className="set-saved" style={{ color: "#b45309" }}>
-          <UiIcon name="info" size={15} /> This browser can't show
-          background notifications - you'll still see the in-app bell.
-        </p>
-      ) : (
-        <>
-        <button
-          type="button"
-          className={enabled ? "set-btn-danger" : "set-btn-primary"}
-          onClick={enabled ? turnOff : turnOn}
-          disabled={busy}
-          style={{ margin: 10 }}
-          >
-          {busy ? (
-            <>
-              <UiIcon name="loader" size={16} spin /> Working…
-            </>
-          ) : enabled ? (
-            <>
-              <UiIcon name="bell" size={16} /> Turn off background alerts
-            </>
+        <SetRow
+          title="Background alerts"
+          desc={description}
+          action={canToggle ? (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={enabled}
+              aria-label="Background alerts"
+              className="set-switch"
+              disabled={busy}
+              onClick={enabled ? turnOff : turnOn}
+            />
           ) : (
-            <>
-               Enable background alerts
-            </>
+            <span className="set-badge is-off">{needsInstall ? "Install first" : "Not available"}</span>
           )}
-        </button>
-          </>
-      )}
+        />
 
-      {msg && (
-        <p
-          className="set-saved"
-          style={{
-            color:
-              msg.type === "ok" ? "#065f46" : msg.type === "err" ? "#b91c1c" : "#b45309",
-          }}
-        >
-          <UiIcon name={msg.type === "ok" ? "check" : "info"} size={14} />{" "}
-          {msg.text}
-        </p>
-      )}
+        {installable && (
+          <SetRow
+            title="Install Nexus"
+            desc="Add Nexus to your home screen or desktop to open it in one tap."
+            action={(
+              <button type="button" className="set-btn-ghost set-btn-sm" onClick={install}>
+                Install
+              </button>
+            )}
+          />
+        )}
 
-      {supported && !needsInstall && isIos() && (
-        <p className="set-card-sub" style={{ marginTop: 8, fontSize: 12 }}>
-          Tip: keep Nexus on your Home Screen so iOS keeps delivering alerts.
-        </p>
+        {msg && (
+          <div className="set-body">
+            <p
+              className={`set-status is-${msg.type === "ok" ? "ok" : msg.type === "err" ? "err" : "warn"}`}
+              role="status"
+              style={{ margin: 0 }}
+            >
+              <UiIcon name={msg.type === "ok" ? "check" : "alert"} size={14} />
+              <span>{msg.text}</span>
+            </p>
+          </div>
+        )}
+      </SetSection>
+
+      {needsInstall && (
+        <SetSection title="One step on iPhone & iPad" sub="Apple only delivers notifications to apps on the Home Screen.">
+          <div className="set-body">
+            <ol className="set-steps">
+              <li>In Safari, tap the <strong>Share</strong> button.</li>
+              <li>Choose <strong>Add to Home Screen</strong>.</li>
+              <li>Open <strong>Nexus</strong> from your Home Screen, come back to this page and switch background alerts on.</li>
+            </ol>
+          </div>
+        </SetSection>
       )}
-    </section>
+    </>
   );
 }

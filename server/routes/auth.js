@@ -307,6 +307,13 @@ router.get('/google/callback', wrap(async (req, res) => {
     const target = await finishGoogle(req, res, state.purpose, role, who)
     res.redirect(target)
   } catch (err) {
+    // A reload or a second tab replays a callback that already did its job
+    // (Google's code works once). If they ended up signed in, that's success -
+    // take them in instead of showing an error about a link that has been used.
+    const alreadyIn = await sessionUser(req, role).catch(() => null)
+    if (alreadyIn && (err?.code === 'BAD_STATE' || err?.code === 'GOOGLE_FAILED')) {
+      return res.redirect(homePath(alreadyIn.user))
+    }
     redirectWithError(res, err, role)
   }
 }))

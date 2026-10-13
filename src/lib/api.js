@@ -13,32 +13,54 @@ export class ApiError extends Error {
   }
 }
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+// The API can be briefly unreachable (a restart, a cold start). Rather than
+// show an error for a blip, wait a moment and ask again. Only requests that
+// can't have reached the server are repeated, so nothing is ever done twice.
+const RETRIES = 3
+const RETRY_DELAY_MS = 700
+
 export async function api(path, { method = 'GET', body, signal } = {}) {
-  let response
-  try {
-    response = await fetch(`/api${path}`, {
-      method,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      credentials: 'same-origin',
-      signal,
-    })
-  } catch (err) {
-    if (err?.name === 'AbortError') throw err
-    throw new ApiError(
-      "Nexus couldn't be reached. Check that you're online and try again.",
-      { code: 'NETWORK' }
-    )
-  }
+  for (let attempt = 0; ; attempt++) {
+    let response
+    try {
+      response = await fetch(`/api${path}`, {
+        method,
+        headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        credentials: 'same-origin',
+        signal,
+      })
+    } catch (err) {
+      if (err?.name === 'AbortError') throw err
+      // Never reached the server: safe to retry reads.
+      if (method === 'GET' && attempt < RETRIES) {
+        await sleep(RETRY_DELAY_MS)
+        continue
+      }
+      throw new ApiError(
+        "Nexus couldn't be reached. Check that you're online and try again.",
+        { code: 'NETWORK' }
+      )
+    }
 
-  const data = await response.json().catch(() => null)
-
-  if (!response.ok) {
+    const data = await response.json().catch(() => null)
     const problem = data?.error
-    throw new ApiError(
-      problem?.message || `Something went wrong (error ${response.status}). Please try again.`,
-      { status: response.status, code: problem?.code || 'ERROR', data: problem?.data }
-    )
+
+    // The dev proxy says "API_STARTING" when nothing answered: the request
+    // never reached the API, so any method is safe to repeat.
+    if (response.status === 503 && problem?.code === 'API_STARTING' && attempt < RETRIES) {
+      await sleep(RETRY_DELAY_MS)
+      continue
+    }
+
+    if (!response.ok) {
+      throw new ApiError(
+        problem?.message || `Something went wrong (error ${response.status}). Please try again.`,
+        { status: response.status, code: problem?.code || 'ERROR', data: problem?.data }
+      )
+    }
+    return data
   }
-  return data
 }

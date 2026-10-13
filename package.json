@@ -4,13 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n web,api -c magenta,cyan \"vite\" \"node --watch server/dev.js\"",
+    "dev": "concurrently -k -n web,api -c magenta,cyan \"vite\" \"node --watch-path=./server server/dev.js\"",
     "dev:web": "vite",
-    "dev:api": "node --watch server/dev.js",
+    "dev:api": "node --watch-path=./server server/dev.js",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:api": "node --test server/test/"
+    "test:api": "node --test server/test/api.test.mjs",
+    "papers:cloud": "node scripts/papers-to-cloudinary.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

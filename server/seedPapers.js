@@ -1,6 +1,7 @@
 // The papers that shipped with Nexus before it had a database. They are copied
 // into Mongo once (see seed.js) so they can be moderated like any other paper.
-// The files themselves stay in public/pastquestions/.
+// The files start in public/pastquestions/ and are moved to Cloudinary by
+// `npm run papers:cloud` (scripts/papers-to-cloudinary.mjs).
 
 export const seedPapers = [
   { code: 'COS 101', session: '2023/2024', file: 'COS101-20232024.pdf' },

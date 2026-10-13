@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import PaperReview from './PaperReview'
 import { useDele } from './deleContext'
-import { DeleStackSkeleton } from './DeleSkeletons'
+import { DeleCardsSkeleton } from './DeleSkeletons'
 
 const FILTERS = [
   { id: 'pending', label: 'Waiting' },
@@ -63,19 +63,21 @@ export default function DelePapers() {
       </div>
 
       {error && <p className="dl-error" role="alert">{error}</p>}
-      {!papers && !error && <DeleStackSkeleton />}
+      {!papers && !error && <DeleCardsSkeleton />}
 
       {papers?.length === 0 && (
         <p className="dl-empty">
-          {status === 'pending' ? 'Nothing is waiting for review. 🎉' : 'No papers here.'}
+          {status === 'pending' ? 'Nothing in Lobby' : 'No papers here.'}
         </p>
       )}
 
-      <div className="dl-stack">
-        {papers?.map(paper => (
-          <PaperReview key={paper.id} paper={paper} onChanged={changed} onDeleted={removed} />
-        ))}
-      </div>
+      {papers?.length > 0 && (
+        <div className="dl-cmp-grid">
+          {papers.map(paper => (
+            <PaperReview key={paper.id} paper={paper} compact onChanged={changed} onDeleted={removed} onRefresh={load} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

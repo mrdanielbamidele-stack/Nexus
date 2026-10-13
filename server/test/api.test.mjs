@@ -345,10 +345,11 @@ describe('the owner area (/delealone)', () => {
     const list = (await owner.call('GET', '/api/dele/papers?status=pending')).json.papers
     const mine = list.find(p => p.id === sent.json.id)
     assert.equal(mine.uploader.label, 'Not logged in')
-    assert.equal(mine.title, 'PHY 101 2023/2024 v2') // the original is v1, this one auto-numbers to v2
+    assert.equal(mine.title, 'PHY 101 2023/2024') // not public yet, so no version
 
     const approved = await owner.call('PATCH', `/api/dele/papers/${sent.json.id}`, { status: 'approved' })
     assert.equal(approved.json.paper.status, 'approved')
+    assert.equal(approved.json.paper.title, 'PHY 101 2023/2024 v2') // the original is v1; this joins as v2
 
     const after = (await guest.call('GET', '/api/papers')).json.courses.phy101.years
     assert.deepEqual(Object.keys(after).sort(), ['20232024', '20232024-v2'])
@@ -385,6 +386,64 @@ describe('the owner area (/delealone)', () => {
 
     const courses = (await owner.call('GET', '/api/dele/compare/courses')).json.courses
     assert.ok(courses.find(c => c.key === 'phy101').total >= 2)
+  })
+
+  it('numbers only public versions, and lets the owner choose which is v1', async () => {
+    const send = name => owner.call('POST', '/api/dele/papers', {
+      courseCode: 'COS 101', session: '2021/2022', files: [fileFor(1, name)],
+    })
+    const listed = async () => (await owner.call('GET', '/api/dele/papers?course=cos101')).json.papers
+
+    const first = (await send('v-a.jpg')).json.paper
+    const second = (await send('v-b.jpg')).json.paper
+    assert.equal(first.title, 'COS 101 2021/2022')
+    assert.equal(second.title, 'COS 101 2021/2022 v2')
+
+    // Make the second one v1: they swap places.
+    let r = await owner.call('PATCH', `/api/dele/papers/${second.id}`, { version: 1 })
+    assert.equal(r.status, 200)
+    assert.equal(r.json.paper.title, 'COS 101 2021/2022')
+    let rows = await listed()
+    assert.equal(rows.find(p => p.id === first.id).title, 'COS 101 2021/2022 v2')
+    assert.equal(rows.find(p => p.id === first.id).publicVersions, 2)
+
+    r = await owner.call('PATCH', `/api/dele/papers/${second.id}`, { version: 5 })
+    assert.equal(r.status, 400)
+    assert.equal(r.json.error.code, 'BAD_VERSION')
+
+    // Hiding a public paper closes the gap: the one left is plain again.
+    await owner.call('PATCH', `/api/dele/papers/${second.id}`, { status: 'rejected' })
+    rows = await listed()
+    assert.equal(rows.find(p => p.id === first.id).title, 'COS 101 2021/2022')
+    assert.equal(rows.find(p => p.id === second.id).title, 'COS 101 2021/2022')
+
+    // A paper students can't see has no version to choose.
+    r = await owner.call('PATCH', `/api/dele/papers/${second.id}`, { version: 1 })
+    assert.equal(r.status, 400)
+    assert.equal(r.json.error.code, 'NOT_PUBLIC')
+
+    // Approving it again puts it last, as v2.
+    r = await owner.call('PATCH', `/api/dele/papers/${second.id}`, { status: 'approved' })
+    assert.equal(r.json.paper.title, 'COS 101 2021/2022 v2')
+
+    // Deleting v1 promotes v2.
+    await owner.call('DELETE', `/api/dele/papers/${first.id}`)
+    rows = await listed()
+    assert.equal(rows.find(p => p.id === second.id).title, 'COS 101 2021/2022')
+    await owner.call('DELETE', `/api/dele/papers/${second.id}`)
+  })
+
+  it('lists every course with all of its papers for the Compare scroll', async () => {
+    const r = await owner.call('GET', '/api/dele/compare/all')
+    assert.equal(r.status, 200)
+
+    const phy = r.json.courses.find(c => c.key === 'phy101')
+    assert.equal(phy.code, 'PHY 101')
+    assert.ok(phy.papers.length >= 2)
+    assert.ok(phy.papers.every(p => p.courseKey === 'phy101'))
+
+    const keys = r.json.courses.map(c => c.key)
+    assert.deepEqual(keys, [...keys].sort())
   })
 
   it('records usage and reports it', async () => {
@@ -434,5 +493,207 @@ describe('the owner area (/delealone)', () => {
 
     await owner.call('POST', '/api/dele/impersonate/stop')
     assert.equal((await owner.call('GET', '/api/me')).json.student, null)
+  })
+})
+
+describe('deleting an account for good', () => {
+  const email = '202500099@topfaith.edu.ng'
+
+  it('needs the password, then lets the same email sign up as a brand-new user', async () => {
+    const me = browser()
+    await me.call('POST', '/api/auth/signup', signupBody({ email }))
+    await verify(email)
+    await me.call('POST', '/api/auth/login', { role: 'student', email, password: 'correct-horse' })
+
+    const wrong = await me.call('DELETE', '/api/student/account', { password: 'not-my-password' })
+    assert.equal(wrong.status, 400)
+    assert.equal(wrong.json.error.code, 'WRONG_PASSWORD')
+    assert.equal(await User.countDocuments({ email, role: 'student' }), 1)
+
+    const gone = await me.call('DELETE', '/api/student/account', { password: 'correct-horse' })
+    assert.equal(gone.status, 200)
+    assert.equal(await User.countDocuments({ email }), 0)
+    assert.equal((await me.call('GET', '/api/me')).json.student, null)
+
+    // Same email, fresh start: unverified again, with none of the old details.
+    const again = await browser().call('POST', '/api/auth/signup', signupBody({ email, username: 'Fresh', programme: 'Mathematics' }))
+    assert.equal(again.status, 201)
+    const user = await User.findOne({ email })
+    assert.equal(user.status, 'unverified')
+    assert.equal(user.username, 'Fresh')
+    assert.equal(user.programme, 'Mathematics')
+  })
+
+  it('removes their history but keeps the papers they sent, without their name', async () => {
+    const who = '202500098@topfaith.edu.ng'
+    const s = browser()
+    await s.call('POST', '/api/auth/signup', signupBody({ email: who }))
+    await verify(who)
+    await s.call('POST', '/api/auth/login', { role: 'student', email: who, password: 'correct-horse' })
+
+    const sent = await s.call('POST', '/api/papers', {
+      courseCode: 'STA 111', session: '2021/2022',
+      files: [{
+        url: 'https://res.cloudinary.com/democloud/image/upload/v1/nexus/papers/b/page-1.jpg',
+        publicId: 'nexus/papers/b/page-1', resourceType: 'image', format: 'jpg', bytes: 10, name: 'page-1.jpg', kind: 'page', page: 1,
+      }],
+    })
+    assert.equal(sent.status, 201)
+
+    // The owner erases the account from the Users page.
+    const owner = browser()
+    await owner.call('POST', '/api/dele/login', { password1: 'first-pass', password2: 'second-pass' })
+    const target = (await owner.call('GET', `/api/dele/users?q=${who}`)).json.users[0]
+    const erased = await owner.call('DELETE', `/api/dele/users/${target.id}`)
+    assert.equal(erased.status, 200)
+    assert.equal(await User.countDocuments({ email: who }), 0)
+
+    const paper = await Paper.findById(sent.json.id)
+    assert.ok(paper, 'the paper is kept for students')
+    assert.equal(paper.uploaderId, null)
+    assert.equal(paper.uploaderEmail, null)
+  })
+})
+
+describe('changing course of study and level', () => {
+  const email = '202500077@topfaith.edu.ng'
+  const s = browser()
+
+  it('keeps the course list unless asked to replace it', async () => {
+    await s.call('POST', '/api/auth/signup', signupBody({ email }))
+    await verify(email)
+    await s.call('POST', '/api/auth/login', { role: 'student', email, password: 'correct-horse' })
+    await s.call('PUT', '/api/student/courses', { courses: ['PHY 101'] })
+
+    const kept = await s.call('PUT', '/api/student/programme', { programme: 'Mathematics', level: '200' })
+    assert.equal(kept.status, 200)
+    assert.equal(kept.json.me.programme, 'Mathematics')
+    assert.equal(kept.json.me.level, '200')
+    assert.deepEqual(kept.json.me.courses, ['PHY 101'])
+  })
+
+  it('can replace the course list with the new programme and level', async () => {
+    const replaced = await s.call('PUT', '/api/student/programme', {
+      programme: 'Computer Science', level: '100', resetCourses: true,
+    })
+    assert.ok(replaced.json.me.courses.includes('COS 101'))
+    assert.ok(!replaced.json.me.courses.includes('PHY 101') || replaced.json.me.courses.length > 1)
+  })
+
+  it('explains a course or level that does not exist', async () => {
+    const bad = await s.call('PUT', '/api/student/programme', { programme: 'Mathematics', level: '900' })
+    assert.equal(bad.status, 400)
+    assert.equal(bad.json.error.code, 'BAD_LEVEL')
+    assert.match(bad.json.error.message, /levels/)
+
+    const unknown = await s.call('PUT', '/api/student/programme', { programme: 'Underwater Basket Weaving', level: '100' })
+    assert.equal(unknown.json.error.code, 'BAD_PROGRAMME')
+  })
+})
+
+describe('sessions last 6 months and start again when you come back', () => {
+  const DAYS = 24 * 60 * 60
+  const decode = token => JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString())
+  const pause = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+  it('keeps a student signed in for 180 days and renews on return', async () => {
+    const email = '202500055@topfaith.edu.ng'
+    const s = browser()
+    await s.call('POST', '/api/auth/signup', signupBody({ email }))
+    await verify(email)
+    await s.call('POST', '/api/auth/login', { role: 'student', email, password: 'correct-horse' })
+
+    const first = decode(s.jar.get('nx_s'))
+    assert.equal(first.exp - first.iat, 180 * DAYS)
+
+    await pause(1100)
+    await s.call('GET', '/api/me') // opening the app again
+    const second = decode(s.jar.get('nx_s'))
+    assert.ok(second.iat > first.iat, 'the clock was restarted')
+    assert.equal(second.exp - second.iat, 180 * DAYS)
+  })
+
+  it('does the same for the owner area', async () => {
+    const owner = browser()
+    await owner.call('POST', '/api/dele/login', { password1: 'first-pass', password2: 'second-pass' })
+    const first = decode(owner.jar.get('nx_d'))
+    assert.equal(first.exp - first.iat, 180 * DAYS)
+
+    await pause(1100)
+    assert.equal((await owner.call('GET', '/api/dele/me')).status, 200)
+    const second = decode(owner.jar.get('nx_d'))
+    assert.ok(second.iat > first.iat)
+    assert.equal(second.exp - second.iat, 180 * DAYS)
+  })
+
+  it('never stretches a "log in as" session beyond its 10 minutes', async () => {
+    const owner = browser()
+    await owner.call('POST', '/api/dele/login', { password1: 'first-pass', password2: 'second-pass' })
+    const target = (await owner.call('GET', '/api/dele/users?role=student')).json.users.find(u => u.status === 'verified')
+    await owner.call('POST', '/api/dele/impersonate', { userId: target.id })
+
+    await pause(1100)
+    await owner.call('GET', '/api/me')
+    const token = decode(owner.jar.get('nx_s'))
+    assert.equal(token.exp - token.iat, 10 * 60)
+    assert.equal(token.imp, true)
+  })
+})
+
+describe('owner-made staff accounts', () => {
+  const body = {
+    name: 'Dr. Test Admin',
+    email: 'admin.test@topfaith.edu.ng',
+    department: 'Software Engineering',
+    password: 'owner-made-pass',
+  }
+
+  it('needs the owner session', async () => {
+    const r = await browser().call('POST', '/api/dele/users/staff', body)
+    assert.equal(r.status, 401)
+  })
+
+  it('refuses addresses that cannot be staff, with clear reasons', async () => {
+    const owner = browser()
+    await owner.call('POST', '/api/dele/login', { password1: 'first-pass', password2: 'second-pass' })
+
+    const gmail = await owner.call('POST', '/api/dele/users/staff', { ...body, email: 'someone@gmail.com' })
+    assert.equal(gmail.json.error.code, 'BAD_EMAIL')
+
+    const student = await owner.call('POST', '/api/dele/users/staff', { ...body, email: '202500001@topfaith.edu.ng' })
+    assert.equal(student.json.error.code, 'STUDENT_EMAIL_ON_ADMIN')
+
+    const dept = await owner.call('POST', '/api/dele/users/staff', { ...body, department: 'Nowhere' })
+    assert.equal(dept.json.error.code, 'BAD_DEPARTMENT')
+
+    const weak = await owner.call('POST', '/api/dele/users/staff', { ...body, password: 'short' })
+    assert.equal(weak.json.error.code, 'BAD_DETAILS')
+  })
+
+  it('creates a verified admin who can sign in at /admin straight away', async () => {
+    const owner = browser()
+    await owner.call('POST', '/api/dele/login', { password1: 'first-pass', password2: 'second-pass' })
+
+    const made = await owner.call('POST', '/api/dele/users/staff', body)
+    assert.equal(made.status, 201)
+    assert.equal(made.json.user.status, 'verified')
+
+    const row = await User.findOne({ email: body.email, role: 'admin' })
+    assert.equal(row.createdByOwner, true)
+    assert.equal(row.faculty, 'Computing & Information Sciences')
+
+    const staff = browser()
+    const login = await staff.call('POST', '/api/auth/login', { role: 'admin', email: body.email, password: body.password })
+    assert.equal(login.status, 200)
+    assert.equal(login.json.next, 'home') // the department was set, so no extra question
+    const me = (await staff.call('GET', '/api/me')).json
+    assert.equal(me.admin.department, 'Software Engineering')
+
+    const again = await owner.call('POST', '/api/dele/users/staff', body)
+    assert.equal(again.status, 409)
+    assert.equal(again.json.error.code, 'ACCOUNT_EXISTS')
+
+    const listed = (await owner.call('GET', `/api/dele/users?q=${body.email}`)).json.users[0]
+    assert.equal(listed.createdByOwner, true)
   })
 })

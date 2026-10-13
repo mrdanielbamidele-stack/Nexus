@@ -113,7 +113,7 @@ export default function Dashboard() {
     <div>
       <ScrollToTop />
       <h1 style={{ marginBottom: 0 }}>Hi {username}👋</h1>
-      <p className="muted" style={{ margin: 0 }}>What course are we reading today?</p>
+      <p className="muted" style={{ margin: 0 }}>What course are we studying today?</p>
 
       {/* A little encouragement - leans on real progress when there is some */}
       <HeroBanner

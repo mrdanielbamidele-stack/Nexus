@@ -223,6 +223,7 @@
   letter-spacing: -0.03em;
   color: var(--auth-ink);
 }
+.auth-title-center { text-align: center; }
 /* A lead line (forgot / verify / reset) hugs the title instead of the form */
 .auth-title + .auth-lead { margin-top: -16px; }
 .auth-lead {

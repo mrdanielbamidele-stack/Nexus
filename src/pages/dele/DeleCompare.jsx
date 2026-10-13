@@ -1,117 +1,150 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import PaperReview from './PaperReview'
 import { useDele } from './deleContext'
-import { DeleCoursesSkeleton, DeleStackSkeleton } from './DeleSkeletons'
+import { DeleCompareSkeleton } from './DeleSkeletons'
 
-// Every upload for one course in one long list - photos, PDFs and documents all
-// visible - so versions of the same paper ("PHY 101 2023/2024", "... v2") can be
-// compared side by side and approved or deleted from here.
+const FILTERS = [
+  { id: '', label: 'All' },
+  { id: 'approved', label: 'Approved' },
+  { id: 'pending', label: 'Waiting' },
+  { id: 'rejected', label: 'Rejected' },
+]
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+// Every course on Nexus, one after another: its sessions and versions grouped
+// together, each with a small preview you can maximize. Scroll through it all
+// instead of opening courses one by one.
 export default function DeleCompare() {
   const { call } = useDele()
-  const [params, setParams] = useSearchParams()
-  const course = params.get('course') || ''
+  const [params] = useSearchParams()
+  const jumpTo = params.get('course') || ''
 
   const [courses, setCourses] = useState(null)
   const [query, setQuery] = useState('')
-  const [detail, setDetail] = useState(null)
+  const [status, setStatus] = useState('')
   const [error, setError] = useState('')
+  const jumped = useRef(false)
 
+  const load = useCallback(
+    () => call('/compare/all').then(({ courses: list }) => setCourses(list)).catch(err => setError(err.message)),
+    [call]
+  )
+
+  useEffect(() => { load() }, [load])
+
+  // /delealone/compare?course=mth101 still lands on that course.
   useEffect(() => {
-    call('/compare/courses').then(({ courses: list }) => setCourses(list)).catch(err => setError(err.message))
-  }, [call])
+    if (!courses || !jumpTo || jumped.current) return
+    jumped.current = true
+    document.getElementById(`course-${jumpTo.toLowerCase()}`)?.scrollIntoView()
+  }, [courses, jumpTo])
 
-  const load = useCallback(async () => {
-    if (!course) return
-    setError('')
-    try {
-      setDetail(await call(`/compare?course=${encodeURIComponent(course)}`))
-    } catch (err) {
-      setError(err.message)
-    }
-  }, [call, course])
+  const changed = useCallback(updated => {
+    setCourses(list => list.map(c => ({ ...c, papers: c.papers.map(p => (p.id === updated.id ? updated : p)) })))
+  }, [])
 
-  useEffect(() => {
-    setDetail(null)
-    load()
-  }, [load])
+  const removed = useCallback(id => {
+    setCourses(list => list
+      .map(c => ({ ...c, papers: c.papers.filter(p => p.id !== id) }))
+      .filter(c => c.papers.length > 0))
+  }, [])
 
-  const shownCourses = useMemo(() => {
-    const q = query.trim().toLowerCase().replace(/\s+/g, '')
-    if (!q) return courses || []
-    return (courses || []).filter(c => c.code.toLowerCase().replace(/\s+/g, '').includes(q) || c.title.toLowerCase().includes(query.trim().toLowerCase()))
-  }, [courses, query])
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const squashed = q.replace(/\s+/g, '')
 
-  // Group the papers by session, newest session first (the server already sorted them).
-  const groups = useMemo(() => {
-    const map = new Map()
-    for (const paper of detail?.papers || []) {
-      if (!map.has(paper.session)) map.set(paper.session, [])
-      map.get(paper.session).push(paper)
-    }
-    return [...map.entries()]
-  }, [detail])
+    return (courses || []).flatMap(course => {
+      const matches = !q
+        || course.code.toLowerCase().replace(/\s+/g, '').includes(squashed)
+        || course.title.toLowerCase().includes(q)
+      if (!matches) return []
 
-  const changed = updated =>
-    setDetail(d => ({ ...d, papers: d.papers.map(p => (p.id === updated.id ? updated : p)) }))
-  const removed = id => setDetail(d => ({ ...d, papers: d.papers.filter(p => p.id !== id) }))
+      const papers = status ? course.papers.filter(p => p.status === status) : course.papers
+      return papers.length ? [{ ...course, papers }] : []
+    })
+  }, [courses, query, status])
 
-  /* ---- no course chosen: pick one ---- */
-  if (!course) {
-    return (
-      <div>
-        <div className="dl-titlebar"><h1>Compare</h1></div>
-        <p className="dl-lead">Choose a course to see every upload for it in one place.</p>
+  const paperCount = shown.reduce((sum, c) => sum + c.papers.length, 0)
 
+  return (
+    <div className="dl-cmp">
+      <div className="dl-titlebar"><h1>Compare</h1></div>
+      <p className="dl-lead">
+        Every course on Nexus with all of its sessions and versions together. Scroll through them,
+        and maximize any paper to look closer.
+      </p>
+
+      <div className="dl-cmp-bar">
         <input
-          className="dl-input wide"
-          placeholder="Search a course, e.g. PHY 101"
+          className="dl-input"
+          placeholder="Find a course, e.g. PHY 101"
+          aria-label="Find a course"
           value={query}
           onChange={e => setQuery(e.target.value)}
         />
-
-        {error && <p className="dl-error" role="alert">{error}</p>}
-        {!courses && !error && <DeleCoursesSkeleton />}
-        {courses?.length === 0 && <p className="dl-empty">No uploads yet.</p>}
-
-        <div className="dl-course-grid">
-          {shownCourses.map(c => (
-            <button key={c.key} type="button" className="dl-course" onClick={() => setParams({ course: c.key })}>
-              <strong>{c.code}</strong>
-              <span>{c.title}</span>
-              <em>
-                {c.total} upload{c.total === 1 ? '' : 's'}
-                {c.pending > 0 && <b> · {c.pending} waiting</b>}
-              </em>
+        <div className="dl-cmp-chips" role="tablist">
+          {FILTERS.map(filter => (
+            <button
+              key={filter.id || 'all'}
+              type="button"
+              role="tab"
+              aria-selected={status === filter.id}
+              className={`dl-chip${status === filter.id ? ' on' : ''}`}
+              onClick={() => setStatus(filter.id)}
+            >
+              {filter.label}
             </button>
           ))}
         </div>
-      </div>
-    )
-  }
-
-  /* ---- one course ---- */
-  return (
-    <div>
-      <div className="dl-titlebar">
-        <h1>{detail?.course.code || course} <small>{detail?.course.title}</small></h1>
-        <button type="button" className="dl-btn ghost" onClick={() => setParams({})}>All courses</button>
+        {courses && <span className="dl-cmp-count">{plural(shown.length, 'course')} · {plural(paperCount, 'paper')}</span>}
       </div>
 
       {error && <p className="dl-error" role="alert">{error}</p>}
-      {!detail && !error && <DeleStackSkeleton count={2} label="Loading uploads" />}
-      {detail && detail.papers.length === 0 && <p className="dl-empty">Nothing has been uploaded for this course.</p>}
+      {!courses && !error && <DeleCompareSkeleton />}
+      {courses?.length === 0 && <p className="dl-empty">No uploads yet.</p>}
+      {courses?.length > 0 && shown.length === 0 && (
+        <p className="dl-empty">No course matches that. Try a different code or clear the filter.</p>
+      )}
 
-      {groups.map(([session, papers]) => (
-        <section key={session} className="dl-session">
-          <h2>{session} <small>{papers.length} upload{papers.length === 1 ? '' : 's'}</small></h2>
-          <div className="dl-stack">
-            {papers.map(paper => (
-              <PaperReview key={paper.id} paper={paper} onChanged={changed} onDeleted={removed} />
-            ))}
-          </div>
-        </section>
-      ))}
+      {shown.map(course => {
+        const sessions = [...new Set(course.papers.map(p => p.session))]
+        const waiting = course.papers.filter(p => p.status === 'pending').length
+
+        return (
+          <section key={course.key} id={`course-${course.key}`} className="dl-cmp-course">
+            <header className="dl-cmp-head">
+              <h2>
+                {course.code}
+                {course.title && <small>{course.title}</small>}
+              </h2>
+              <span>
+                {plural(course.papers.length, 'paper')} · {plural(sessions.length, 'session')}
+                {waiting > 0 && <b> · {waiting} waiting</b>}
+              </span>
+            </header>
+
+            <div className="dl-cmp-grid">
+              {sessions.map(session => {
+                const group = course.papers.filter(p => p.session === session)
+                const live = group.filter(p => p.status === 'approved').length
+                return (
+                  <Fragment key={session}>
+                    <h3 className="dl-cmp-session">
+                      {session}
+                      {live > 1 && <span>{live} public versions</span>}
+                    </h3>
+                    {group.map(paper => (
+                      <PaperReview key={paper.id} paper={paper} compact onChanged={changed} onDeleted={removed} onRefresh={load} />
+                    ))}
+                  </Fragment>
+                )
+              })}
+            </div>
+          </section>
+        )
+      })}
     </div>
   )
 }

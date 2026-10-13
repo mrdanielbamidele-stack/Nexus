@@ -9,10 +9,10 @@ import bcrypt from 'bcryptjs'
 import { User } from '../models.js'
 import { fail, wrap } from '../lib/errors.js'
 import {
-  COOKIE, SHORT_SECONDS, clearCookie, needUser, readCookie, sessionUser, setCookie,
+  COOKIE, SHORT_SECONDS, clearCookie, needUser, readCookie, renewCookie, sessionUser, setCookie,
 } from '../lib/session.js'
-import { adminShape, studentShape } from '../lib/accounts.js'
-import { hasCourse } from '../lib/courses.js'
+import { adminShape, eraseAccount, studentShape } from '../lib/accounts.js'
+import { baseCourseCodes, hasCourse, levelsOfProgramme, programmes } from '../lib/courses.js'
 import { checkSchoolEmail, emailProblem, passwordProblem, roleProblem, usernameProblem } from '../../src/lib/schoolEmail.js'
 import { FACULTIES, facultyOf } from '../../src/data/faculties.js'
 
@@ -40,6 +40,10 @@ meRouter.get('/', wrap(async (req, res) => {
       await User.updateOne({ _id: found.user._id }, { lastSeenAt: new Date() })
     }
   }
+
+  // Coming back restarts the 6-month clock (only for accounts that still exist).
+  if (student) renewCookie(req, res, COOKIE.student)
+  if (admin) renewCookie(req, res, COOKIE.admin)
 
   const impersonated = [student, admin].find(found => found?.impersonated)
 
@@ -88,6 +92,28 @@ function sharedRoutes(router, role) {
     res.json({ ok: true })
   }))
 
+  // Delete the account for good. The password is asked for again so a borrowed
+  // phone or an open tab can't do it by accident.
+  router.delete('/account', needUser(role), wrap(async (req, res) => {
+    if (req.impersonated) {
+      throw fail(403, 'IMPERSONATED', "You're viewing this account as the site owner. Delete it from the Users page instead.")
+    }
+
+    if (!(await bcrypt.compare(String(req.body?.password || ''), req.user.passwordHash))) {
+      throw fail(
+        400,
+        'WRONG_PASSWORD',
+        "That password isn't right, so the account was not deleted. Type your current password to confirm."
+      )
+    }
+
+    await eraseAccount(req.user)
+    for (const name of [COOKIE[role], COOKIE.pending, COOKIE.reset, COOKIE.forgot, COOKIE.emailChange]) {
+      clearCookie(res, name)
+    }
+    res.json({ ok: true })
+  }))
+
   // Changing the email is re-verified with Google, so the new address is proven
   // to belong to them. This only opens that door; the callback finishes it.
   router.post('/email', needUser(role), wrap(async (req, res) => {
@@ -119,6 +145,28 @@ export const studentRouter = Router()
 sharedRoutes(studentRouter, 'student')
 
 // Every course can be added or removed - nothing is locked to the programme.
+// Change course of study and level. With `resetCourses` the course list becomes
+// that programme + level's courses; without it the list is left exactly as is.
+studentRouter.put('/programme', needUser('student'), wrap(async (req, res) => {
+  const programme = String(req.body?.programme || '')
+  const level = String(req.body?.level || '')
+
+  if (!programmes().includes(programme)) {
+    throw fail(400, 'BAD_PROGRAMME', 'Choose your course of study from the list.')
+  }
+  const levels = levelsOfProgramme(programme)
+  if (!levels.includes(level)) {
+    throw fail(400, 'BAD_LEVEL', `Choose a level. ${programme} has these levels: ${levels.join(', ')}.`)
+  }
+
+  req.user.programme = programme
+  req.user.level = level
+  if (req.body?.resetCourses === true) req.user.courses = baseCourseCodes(programme, level)
+
+  await req.user.save()
+  res.json({ me: studentShape(req.user) })
+}))
+
 studentRouter.put('/courses', needUser('student'), wrap(async (req, res) => {
   const list = req.body?.courses
   if (!Array.isArray(list) || list.length > 80) {

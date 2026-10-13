@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import UiIcon from './UiIcon'
+import '../pages/Upload.css'
 
 // "cos101", "COS 101" and "tum-ges 101" should all find the same course.
 const squash = text => text.toLowerCase().replace(/[\s-]+/g, '')
@@ -23,7 +24,9 @@ function highlight(text, query) {
 // A search-as-you-type course picker. With nothing typed it lists every course
 // in the order given (callers pass them A to Z); typing narrows the list, best
 // matches first. Keyboard friendly: arrows, Enter, Esc.
-export default function CourseCombobox({ courses, value, onChange, invalid = false, disabled = false, inputRef }) {
+export default function CourseCombobox({
+  courses, value, onChange, invalid = false, disabled = false, inputRef, pickOnBlur = true,
+}) {
   const listId = useId()
   const wrapRef = useRef(null)
   const [text, setText] = useState('')
@@ -90,7 +93,7 @@ export default function CourseCombobox({ courses, value, onChange, invalid = fal
   function onBlur(e) {
     if (wrapRef.current?.contains(e.relatedTarget)) return
     setOpen(false)
-    if (!value && text.trim() && matches.length === 1) choose(matches[0])
+    if (pickOnBlur && !value && text.trim() && matches.length === 1) choose(matches[0])
   }
 
   return (

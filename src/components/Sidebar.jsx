@@ -1,4 +1,6 @@
 import { NavLink, useLocation } from 'react-router'
+import { isDemo } from '../lib/demo'
+import ImpersonationBanner from './ImpersonationBanner'
 
 // Sections that own their own sidebar item. Everything else - the past
 // questions flow (/pastquestions/..., /admin/pastquestions/...), which has no
@@ -40,13 +42,16 @@ export default function Sidebar({ area = 'student', isOpen, onNavClick, onOpenMo
           Dashboard
         </NavLink>
 
-        <NavLink
-          to={`${base}/upload`}
-          className={({ isActive }) => isActive ? 'active' : ''}
-          onClick={onNavClick}
-        >
-          Upload
-        </NavLink>
+        {/* The demo can't send papers, so it has no Upload item */}
+        {!isDemo && (
+          <NavLink
+            to={`${base}/upload`}
+            className={({ isActive }) => isActive ? 'active' : ''}
+            onClick={onNavClick}
+          >
+            Upload
+          </NavLink>
+        )}
 
         <button type="button" onClick={() => openModal('contact')}>
           Contact
@@ -60,6 +65,9 @@ export default function Sidebar({ area = 'student', isOpen, onNavClick, onOpenMo
           Settings
         </NavLink>
       </nav>
+
+      {/* Only appears while the owner is "logged in as" someone */}
+      <ImpersonationBanner variant="card" />
     </aside>
   )
 }

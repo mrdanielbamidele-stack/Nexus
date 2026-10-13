@@ -42,7 +42,7 @@ export default function AdminDashboard() {
         You're seeing the courses of {admin.department}. Open a course to read its papers, or upload
         a solved or properly typed paper to help students.
         <br />
-        <Link to="/admin/settings" style={{ color: 'inherit', fontWeight: 700 }}>Change department</Link>
+        <Link to="/admin/settings" className='pq-dash-back' style={{marginTop: 10}}>Change department</Link>
       </HeroBanner>
 
       <section className="section">

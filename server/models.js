@@ -28,6 +28,8 @@ const userSchema = new Schema(
     // admin
     faculty: String,
     department: String,
+    // Made by the site owner in /delealone (no Google step), not by sign-up.
+    createdByOwner: { type: Boolean, default: false },
 
     lastLoginAt: Date,
     lastSeenAt: Date,

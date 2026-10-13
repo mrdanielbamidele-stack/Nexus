@@ -1,30 +1,124 @@
-.imp-bar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 3000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  padding: 8px 14px;
-  background: #1f1147;
-  color: #fff;
+/* The "you are viewing as someone else" notice. It borrows the app's own
+   info-box look (the soft violet panel used on Settings) and outline button,
+   so it reads as part of the student site, not something bolted on. */
+
+/* ----- sidebar card (desktop): sits at the foot of the sidebar ----- */
+.imp-card {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 16px;
+  padding: 12px 14px 14px;
+  border: 1px solid #ddd6fe;
+  border-radius: 12px;
+  background: #f5f3ff;
+  color: #4c1d95;
+}
+.imp-card p { margin: 0; }
+
+.imp-lead {
+  font-size: 12.5px;
+  color: var(--text-muted, #6b7280);
+}
+.imp-who {
+  margin-top: 2px;
   font-size: 13.5px;
-  text-align: center;
+  font-weight: 500;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
-.imp-bar b { font-weight: 800; }
+
+/* How much of the session is left: the same thin violet bar the app uses for progress */
+.imp-track {
+  height: 4px;
+  margin-top: 12px;
+  border-radius: 999px;
+  background: #ddd6fe;
+  overflow: hidden;
+}
+.imp-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary, #7c3aed);
+  transition: width 1s linear;
+}
+.imp-track span.low { background: #d97706; }
+
+.imp-left {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--text-muted, #6b7280);
+  font-variant-numeric: tabular-nums;
+}
+.imp-left.low { color: #b45309; }
+
+/* App.css styles every bare button (full width, solid violet); this one is an
+   outline, like the app's other secondary buttons. */
+.imp-card button,
 .imp-bar button {
-  padding: 5px 12px;
-  border: none;
-  border-radius: 7px;
-  background: #fff;
-  color: #1f1147;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--primary, #7c3aed);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--primary, #7c3aed);
   font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
 }
-body:has(.imp-bar) .app { padding-top: 44px; }
+.imp-card button { margin-top: 12px; }
+.imp-card button:hover,
+.imp-bar button:hover {
+  opacity: 1;
+  background: var(--primary, #7c3aed);
+  color: #fff;
+}
+.imp-card button:focus-visible,
+.imp-bar button:focus-visible {
+  outline: 2px solid var(--primary, #7c3aed);
+  outline-offset: 2px;
+}
+
+/* ----- top strip: phones only (the sidebar is a hidden drawer there) ----- */
+.imp-bar { display: none; }
+
+@media (max-width: 767px) {
+  .imp-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px 12px;
+    flex-wrap: wrap;
+    padding: 8px 14px;
+    border-bottom: 1px solid #ddd6fe;
+    background: #f5f3ff;
+    color: #4c1d95;
+    font-size: 13px;
+    text-align: center;
+  }
+  .imp-bar b { font-weight: 600; }
+  .imp-bar button { width: auto; padding: 4px 12px; font-size: 13px; }
+
+  body:has(.imp-bar) .app { padding-top: 44px; }
+
+  /* The strip is always in view here, so the drawer doesn't repeat it */
+  .imp-card { display: none; }
+
+  /* The menu button and bell are fixed at the top; keep them below the strip */
+  body:has(.imp-bar) .menu-btn,
+  body:has(.imp-bar) .nx-bell-fixed { top: 76px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .imp-track span,
+  .imp-card button,
+  .imp-bar button { transition: none; }
+}

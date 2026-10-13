@@ -23,10 +23,12 @@ export const COOKIE = {
 }
 
 export const DAY = 24 * 60 * 60
-export const SESSION_SECONDS = 30 * DAY
+// Signed-in sessions last 6 months and start again each time the person comes
+// back (see renewCookie), so someone who uses Nexus never has to sign in twice.
+export const SESSION_SECONDS = 180 * DAY
 export const PENDING_SECONDS = 14 * DAY
 export const SHORT_SECONDS = 10 * 60 // reset / forgot / email change / google round trip
-export const DELE_SECONDS = 6 * 60 * 60
+export const DELE_SECONDS = 180 * DAY
 export const IMPERSONATE_SECONDS = 10 * 60
 
 function secret() {
@@ -59,6 +61,21 @@ export function setCookie(res, name, payload, seconds) {
 export const clearCookie = (res, name) => res.clearCookie(name, cookieOptions())
 
 export const readCookie = (req, name) => verify(req.cookies?.[name])
+
+// "Entering the platform again restarts the timer": hand back a still-valid
+// session cookie with a fresh full-length expiry. Impersonation sessions are
+// never extended - they stay at their 10 minutes.
+export function renewCookie(req, res, name) {
+  const token = readCookie(req, name)
+  if (!token || token.imp) return false
+
+  const payload = { ...token }
+  delete payload.iat
+  delete payload.exp
+
+  setCookie(res, name, payload, name === COOKIE.dele ? DELE_SECONDS : SESSION_SECONDS)
+  return true
+}
 
 /* ---------------------------- signed-in person ---------------------------- */
 
