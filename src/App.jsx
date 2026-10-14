@@ -18,6 +18,7 @@ import DelePapers from './pages/dele/DelePapers'
 import DeleCompare from './pages/dele/DeleCompare'
 import DeleUsers from './pages/dele/DeleUsers'
 import NotFound from './pages/NotFound'
+import Privacy from './pages/Privacy'
 import { isDemo } from './lib/demo'
 import { isCourseCode, pqKey } from './lib/courseSlug'
 
@@ -36,6 +37,9 @@ export default function App() {
       {isDemo && ['auth', 'admin', 'delealone'].map(path => (
         <Route key={path} path={`/${path}/*`} element={<Navigate to="/" replace />} />
       ))}
+
+      {/* Public privacy policy (the address Google's sign-in screen links to) */}
+      <Route path="/privacy" element={<Privacy />} />
 
       {/* Student sign in / sign up / forgot password */}
       <Route path="/auth" element={<Auth />} />

@@ -35,6 +35,7 @@
       try {
         var signedIn = !!localStorage.getItem('studentAuth')
         if (path.indexOf('/delealone') === 0) view = 'owner'
+        else if (path.indexOf('/privacy') === 0) view = 'page'
         else if (path.indexOf('/auth') === 0) view = 'auth'
         else if (path.indexOf('/demo') === 0 || path.indexOf('/admin') === 0) view = 'shell'
         else if (path.indexOf('/upload') === 0) view = signedIn ? 'shell' : 'page'

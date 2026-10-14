@@ -1,0 +1,216 @@
+/* Public privacy page: a calm, single column that works from phone to desktop. */
+
+.pv-page {
+  --pv-ink: #2b2542;
+  --pv-muted: #7d7893;
+  --pv-line: #e8e4f3;
+  --pv-paper: #fffefd;
+  --pv-accent: #7c3aed;
+
+  min-height: 100vh;
+  background: linear-gradient(180deg, #ffffff 0%, #f3f1fb 100%);
+  color: var(--pv-ink);
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* ── Top bar ────────────────────────────────────────────────────────────── */
+.pv-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--pv-line);
+}
+
+.pv-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--pv-accent);
+  text-decoration: none;
+}
+
+.pv-badge {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--pv-accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.pv-back {
+  padding: 8px 16px;
+  border: 1px solid #e2ddf0;
+  border-radius: 999px;
+  background: var(--pv-paper);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pv-accent);
+  text-decoration: none;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.pv-back:hover { background: #f5f2fd; border-color: #cdbff0; }
+
+/* ── Content ────────────────────────────────────────────────────────────── */
+.pv-main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pv-hero {
+  padding: 34px 28px 30px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #f1ecfc 0%, #e6defa 100%);
+  border: 1px solid #ddd2f6;
+}
+
+.pv-eyebrow {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #fffefd99;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #6d4fc2;
+}
+
+.pv-hero h1 {
+  margin: 16px 0 10px;
+  font-family: 'Fraunces', ui-serif, Georgia, serif;
+  font-size: clamp(28px, 6vw, 38px);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.pv-hero p { margin: 0; max-width: 540px; font-size: 15px; line-height: 1.7; color: #5d5877; }
+.pv-hero small { display: block; margin-top: 16px; font-size: 12px; color: var(--pv-muted); }
+
+/* ── At a glance ────────────────────────────────────────────────────────── */
+.pv-glance { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+.pv-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid var(--pv-line);
+  border-radius: 18px;
+  background: var(--pv-paper);
+}
+
+.pv-fact strong { margin-top: 8px; font-size: 14px; font-weight: 600; }
+.pv-fact span:last-child { font-size: 12.5px; line-height: 1.55; color: var(--pv-muted); }
+
+/* ── Icon chips (same soft pairs as Settings and Upload) ────────────────── */
+.pv-chip {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  background: var(--tone-bg);
+  color: var(--tone-fg);
+}
+
+.pv-chip.tone-violet { --tone-bg: #eeeafa; --tone-fg: #8a72cc; }
+.pv-chip.tone-blue   { --tone-bg: #e8eef8; --tone-fg: #7b97c2; }
+.pv-chip.tone-peach  { --tone-bg: #fbede1; --tone-fg: #c99a72; }
+.pv-chip.tone-sage   { --tone-bg: #e8f0df; --tone-fg: #6f9553; }
+
+/* ── Section cards ──────────────────────────────────────────────────────── */
+.pv-card {
+  padding: 22px 22px 20px;
+  border: 1px solid var(--pv-line);
+  border-radius: 20px;
+  background: var(--pv-paper);
+}
+
+.pv-card-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.pv-card h2 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+
+.pv-card ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+
+.pv-card li {
+  position: relative;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #5d5877;
+}
+
+.pv-card li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.72em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #cdbff0;
+}
+
+/* ── Contact ────────────────────────────────────────────────────────────── */
+.pv-contact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 22px;
+  border-radius: 20px;
+  background: #4c3a99;
+  color: #fff;
+}
+
+.pv-contact h2 { margin: 0 0 4px; font-size: 17px; font-weight: 600; }
+.pv-contact p { margin: 0; font-size: 13.5px; color: #d9d0f5; }
+
+.pv-mail {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-radius: 12px;
+  background: #fffefd;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4c3a99;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  transition: transform 0.2s ease;
+}
+
+.pv-mail:hover { transform: translateY(-2px); }
+
+/* ── Small screens ──────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .pv-main { padding-top: 20px; }
+  .pv-hero { padding: 26px 20px 24px; border-radius: 20px; }
+  .pv-glance { grid-template-columns: 1fr; }
+  .pv-fact { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 12px; }
+  .pv-fact strong { margin-top: 0; }
+  .pv-fact span:last-child { flex-basis: 100%; }
+  .pv-card { padding: 18px 16px; }
+  .pv-contact { flex-direction: column; align-items: flex-start; }
+  .pv-mail { width: 100%; justify-content: center; }
+}
