@@ -584,6 +584,16 @@
 /* The small preview never scrolls: a click anywhere on it (or the maximize
    button) opens the full view, where reading and zooming happen. */
 .dl-pv-stage:not(.full) .pq-reader-scroll { overflow: hidden; overscroll-behavior: auto; }
+
+/* Photos fit the frame instead of showing at their own size (which crops them).
+   In the small card the whole first photo sits inside it; maximized, photos fit
+   the width and scroll down. */
+.dl-pv-stage .pq-reader-pages.is-photos { width: 100%; min-width: 0; }
+.dl-pv-stage .pq-reader-pages.is-photos .pq-reader-img { width: auto; max-width: 100%; }
+.dl-pv-stage:not(.full) .pq-reader-pages.is-photos .pq-reader-img {
+  max-height: calc(var(--pv-h) - 84px);
+  object-fit: contain;
+}
 .dl-pv-hit {
   position: absolute;
   inset: 0;

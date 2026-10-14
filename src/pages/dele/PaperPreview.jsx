@@ -41,7 +41,7 @@ function Body({ view, zoom, onPage, topPadding, label }) {
   if (view.kind === 'image') {
     return (
       <div className="pq-reader-scroll">
-        <div className="pq-reader-pages" style={{ padding: `${topPadding}px 8px 24px` }}>
+        <div className="pq-reader-pages is-photos" style={{ padding: `${topPadding}px 8px 24px` }}>
           {view.urls.map((src, i) => (
             <img key={src} className="pq-reader-img" src={src} alt={`${label} - page ${i + 1}`} loading="lazy" />
           ))}
