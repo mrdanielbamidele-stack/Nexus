@@ -29,7 +29,12 @@ export default function CourseCombobox({
 }) {
   const listId = useId()
   const wrapRef = useRef(null)
-  const [text, setText] = useState('')
+  // Start from the chosen course's label, so a course that is already selected
+  // when the box appears is shown rather than hidden behind an empty field.
+  const [text, setText] = useState(() => {
+    const chosen = courses.find(c => c.code === value)
+    return chosen ? labelOf(chosen) : ''
+  })
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
 

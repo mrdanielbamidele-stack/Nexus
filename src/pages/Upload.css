@@ -176,6 +176,11 @@
 
 .up-hint svg { margin-top: 1px; }
 
+/* Signed-out visitors: name box + "Stay mysterious" side by side */
+.up-who { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; }
+.up-who-name { flex: 1 1 220px; min-width: 0; }
+.up-who .up-year { flex: 0 0 auto; }
+
 @keyframes up-hint-in {
   from { opacity: 0; transform: translateY(-6px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
@@ -288,6 +293,53 @@
 
 .up-saveas svg { flex-shrink: 0; color: #8a72cc; }
 .up-saveas strong { font-weight: 600; color: var(--up-ink); font-size: 14px; }
+
+/* Owner: papers going up in the background */
+.up-jobs { display: flex; flex-direction: column; gap: 10px; margin: 0 0 20px; scroll-margin-top: 80px; }
+
+.up-job {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--up-line);
+  border-radius: 16px;
+  background: var(--up-paper);
+}
+
+.up-job-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: #f1ecfc;
+  color: var(--up-accent);
+}
+
+.up-job.is-done .up-job-icon { background: #e8f0df; color: #6f9553; }
+.up-job.is-error { border-color: #f1d9dc; background: #fdf8f8; }
+.up-job.is-error .up-job-icon { background: #fbe7e9; color: #c4434f; }
+
+.up-job-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.up-job-body strong { font-size: 14px; font-weight: 600; color: var(--up-ink); }
+.up-job-body > span { font-size: 12.5px; line-height: 1.5; color: var(--up-muted); }
+.up-job-body b { font-weight: 600; color: var(--up-ink); }
+
+.up-job-bar { display: block; height: 7px; margin-top: 6px; border-radius: 999px; background: #efeaf9; overflow: hidden; }
+.up-job-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--up-accent); transition: width 0.3s ease; }
+
+.up-job-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.up-job-actions .up-btn { padding: 9px 16px; }
+
+@media (max-width: 560px) {
+  .up-job { flex-wrap: wrap; }
+  .up-job-actions { width: 100%; justify-content: flex-end; }
+}
+
+/* Owner: the versions already on Nexus, laid out like Compare */
+.up-have { margin: 0 0 24px; }
 
 /* ── Year chips ─────────────────────────────────────────────────────────── */
 .up-years { display: flex; flex-wrap: wrap; gap: 10px; border-radius: 16px; }
@@ -701,6 +753,17 @@
 .up-done-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
 
 .up-confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+
+/* a finished background upload: sprays over the whole page, never blocks clicks */
+.up-confetti.screen { position: fixed; z-index: 60; }
+
+.up-done-icon.is-sending { background: #f1ecfc; color: var(--up-accent); }
+.up-done-icon.is-error { background: #fbe7e9; color: #c4434f; }
+
+.up-done-bar { max-width: 360px; height: 8px; margin: 0 auto 26px; border-radius: 999px; background: #efeaf9; overflow: hidden; }
+.up-done-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--up-accent); transition: width 0.3s ease; }
+
+.up-done p.up-done-others { margin-bottom: 22px; font-size: 12.5px; color: var(--up-faint); }
 
 /* confetti falls behind the words, not over them */
 .up-done > :not(.up-confetti) { position: relative; z-index: 1; }

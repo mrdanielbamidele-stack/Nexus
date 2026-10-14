@@ -60,8 +60,8 @@
     #boot .boot-shell, #boot .boot-auth, #boot .boot-owner { display: none; height: 100%; }
     html:not([data-boot]) #boot .boot-shell, html[data-boot="shell"] #boot .boot-shell, html[data-boot="page"] #boot .boot-shell { display: flex; }
     html[data-boot="auth"] #boot .boot-auth { display: flex; }
-    html[data-boot="owner"] #boot .boot-owner { display: block; }
-    html[data-boot="auth"] #boot, html[data-boot="owner"] #boot { background: transparent; }
+    html[data-boot="owner"] #boot .boot-owner { display: flex; }
+    html[data-boot="auth"] #boot { background: transparent; }
 
     /* app frame: sidebar + page */
     #boot .boot-side { width: 260px; flex: none; padding: 20px; background: #fff; border-right: 1px solid #e5e7eb; }
@@ -87,12 +87,21 @@
     @media (max-width: 520px) { #boot .boot-panel { padding: 24px 20px 22px; border-radius: 20px; } }
 
     /* owner area */
-    #boot .boot-owner { background: #f6f4fc; }
-    #boot .boot-owner-top { display: flex; align-items: center; gap: 14px; padding: 12px 22px; background: #fff; border-bottom: 1px solid #e6e2f3; }
-    #boot .boot-owner-main { max-width: 1180px; margin: 0 auto; padding: 26px 22px; }
-    #boot .boot-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; margin-top: 22px; }
-    #boot .boot-tile { padding: 16px 18px; background: #fff; border: 1px solid #e6e2f3; border-radius: 14px; }
-    #boot .boot-tile .boot-bk + .boot-bk { margin-top: 9px; }
+    /* the app's own frame (sidebar + page), then the overview: title row,
+       banner, metric cards and two panels */
+    #boot .boot-owner { background: #f9fafb; }
+    #boot .boot-owner .boot-main { max-width: 1240px; }
+    #boot .boot-owner-title { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; }
+    #boot .boot-panel-card { padding: 20px; background: #fff; border: 1px solid #e5e7eb; border-radius: 20px; }
+    #boot .boot-panel-card .boot-bk + .boot-bk { margin-top: 14px; }
+    #boot .boot-owner-cols { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 18px; margin-top: 20px; }
+    @media (max-width: 1100px) {
+      #boot .boot-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #boot .boot-owner-cols { grid-template-columns: minmax(0, 1fr); }
+    }
+    #boot .boot-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 20px; }
+    #boot .boot-tile { padding: 20px; background: #fff; border: 1px solid #e5e7eb; border-radius: 20px; }
+    #boot .boot-tile .boot-bk + .boot-bk { margin-top: 10px; }
   </style>
 </head>
 
@@ -142,24 +151,38 @@
         </div>
       </div>
 
-      <!-- the owner's control room -->
+      <!-- the owner's control room: the app frame (sidebar + overview) -->
       <div class="boot-owner" aria-hidden="true">
-        <div class="boot-owner-top">
-          <span class="boot-bk" style="width:30px;height:30px;border-radius:9px"></span>
-          <span class="boot-bk" style="width:110px;height:16px"></span>
-          <span class="boot-bk" style="width:72px;height:30px;border-radius:9px;margin-left:12px"></span>
-          <span class="boot-bk" style="width:72px;height:30px;border-radius:9px"></span>
-          <span class="boot-bk" style="width:72px;height:30px;border-radius:9px"></span>
+        <div class="boot-side">
+          <span class="boot-bk" style="width:120px;height:32px"></span>
+          <span class="boot-bk" style="height:38px;margin-top:28px"></span>
+          <span class="boot-bk" style="height:38px"></span>
+          <span class="boot-bk" style="height:38px"></span>
+          <span class="boot-bk" style="height:38px"></span>
+          <span class="boot-bk" style="height:38px"></span>
         </div>
-        <div class="boot-owner-main">
-          <span class="boot-bk" style="width:150px;height:30px"></span>
+        <div class="boot-main">
+          <div class="boot-owner-title">
+            <div>
+              <span class="boot-bk" style="width:150px;height:30px"></span>
+              <span class="boot-bk" style="width:260px;height:13px;margin-top:10px"></span>
+            </div>
+            <span class="boot-bk" style="width:150px;height:38px;border-radius:10px"></span>
+          </div>
+          <span class="boot-bk" style="height:190px;margin-top:20px;border-radius:26px"></span>
           <div class="boot-tiles">
-            <div class="boot-tile"><span class="boot-bk" style="width:46%;height:28px"></span><span class="boot-bk" style="width:72%;height:13px"></span></div>
-            <div class="boot-tile"><span class="boot-bk" style="width:46%;height:28px"></span><span class="boot-bk" style="width:72%;height:13px"></span></div>
-            <div class="boot-tile"><span class="boot-bk" style="width:46%;height:28px"></span><span class="boot-bk" style="width:72%;height:13px"></span></div>
-            <div class="boot-tile"><span class="boot-bk" style="width:46%;height:28px"></span><span class="boot-bk" style="width:72%;height:13px"></span></div>
-            <div class="boot-tile"><span class="boot-bk" style="width:46%;height:28px"></span><span class="boot-bk" style="width:72%;height:13px"></span></div>
-            <div class="boot-tile"><span class="boot-bk" style="width:46%;height:28px"></span><span class="boot-bk" style="width:72%;height:13px"></span></div>
+            <div class="boot-tile"><span class="boot-bk" style="width:36px;height:36px;border-radius:11px"></span><span class="boot-bk" style="width:55%;height:12px"></span><span class="boot-bk" style="width:42%;height:26px"></span><span class="boot-bk" style="width:70%;height:12px"></span></div>
+            <div class="boot-tile"><span class="boot-bk" style="width:36px;height:36px;border-radius:11px"></span><span class="boot-bk" style="width:55%;height:12px"></span><span class="boot-bk" style="width:42%;height:26px"></span><span class="boot-bk" style="width:70%;height:12px"></span></div>
+            <div class="boot-tile"><span class="boot-bk" style="width:36px;height:36px;border-radius:11px"></span><span class="boot-bk" style="width:55%;height:12px"></span><span class="boot-bk" style="width:42%;height:26px"></span><span class="boot-bk" style="width:70%;height:12px"></span></div>
+            <div class="boot-tile"><span class="boot-bk" style="width:36px;height:36px;border-radius:11px"></span><span class="boot-bk" style="width:55%;height:12px"></span><span class="boot-bk" style="width:42%;height:26px"></span><span class="boot-bk" style="width:70%;height:12px"></span></div>
+            <div class="boot-tile"><span class="boot-bk" style="width:36px;height:36px;border-radius:11px"></span><span class="boot-bk" style="width:55%;height:12px"></span><span class="boot-bk" style="width:42%;height:26px"></span><span class="boot-bk" style="width:70%;height:12px"></span></div>
+            <div class="boot-tile"><span class="boot-bk" style="width:36px;height:36px;border-radius:11px"></span><span class="boot-bk" style="width:55%;height:12px"></span><span class="boot-bk" style="width:42%;height:26px"></span><span class="boot-bk" style="width:70%;height:12px"></span></div>
+            <div class="boot-tile"><span class="boot-bk" style="width:36px;height:36px;border-radius:11px"></span><span class="boot-bk" style="width:55%;height:12px"></span><span class="boot-bk" style="width:42%;height:26px"></span><span class="boot-bk" style="width:70%;height:12px"></span></div>
+            <div class="boot-tile"><span class="boot-bk" style="width:36px;height:36px;border-radius:11px"></span><span class="boot-bk" style="width:55%;height:12px"></span><span class="boot-bk" style="width:42%;height:26px"></span><span class="boot-bk" style="width:70%;height:12px"></span></div>
+          </div>
+          <div class="boot-owner-cols">
+            <div class="boot-panel-card"><span class="boot-bk" style="width:230px;height:16px"></span><span class="boot-bk" style="height:190px"></span></div>
+            <div class="boot-panel-card"><span class="boot-bk" style="width:180px;height:16px"></span><span class="boot-bk" style="height:13px"></span><span class="boot-bk" style="height:13px"></span><span class="boot-bk" style="height:13px"></span><span class="boot-bk" style="height:13px"></span></div>
           </div>
         </div>
       </div>

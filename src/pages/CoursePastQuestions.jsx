@@ -137,7 +137,7 @@ export default function CoursePastQuestions() {
   if (years.length === 0) {
     return (
       <NotFound
-        title="404 - Course not found"
+        title="404 - Past Question not found"
         message={`No past questions for ${courseLabel || 'this course'} yet. Try browsing other courses.`}
         homeTo={base}
         homeLabel="Browse past questions"

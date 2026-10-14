@@ -107,6 +107,7 @@ function uploadError(message = '', status = 0) {
 // so a dropped connection halfway through doesn't start over.
 export async function submitUpload({
   attempt, courseCode, session, pages, docs, onProgress, as = 'student', recordPath = '/papers',
+  uploaderName = '', // a signed-out visitor's name; empty = stays mysterious
 }) {
   const files = buildFileList({ pages, docs })
 
@@ -142,6 +143,7 @@ export async function submitUpload({
       courseCode,
       session,
       as,
+      uploaderName,
       files: files.map((_, i) => attempt.sent[i]),
     },
   })

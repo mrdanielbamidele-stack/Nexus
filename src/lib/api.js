@@ -20,6 +20,8 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 // can't have reached the server are repeated, so nothing is ever done twice.
 const RETRIES = 3
 const RETRY_DELAY_MS = 700
+const STARTING_RETRIES = 10
+const STARTING_DELAY_MS = 1000
 
 export async function api(path, { method = 'GET', body, signal } = {}) {
   for (let attempt = 0; ; attempt++) {
@@ -50,8 +52,10 @@ export async function api(path, { method = 'GET', body, signal } = {}) {
 
     // The dev proxy says "API_STARTING" when nothing answered: the request
     // never reached the API, so any method is safe to repeat.
-    if (response.status === 503 && problem?.code === 'API_STARTING' && attempt < RETRIES) {
-      await sleep(RETRY_DELAY_MS)
+    // A restart (every saved server file while developing) takes several
+    // seconds, so this waits longer than a dropped connection does.
+    if (response.status === 503 && problem?.code === 'API_STARTING' && attempt < STARTING_RETRIES) {
+      await sleep(STARTING_DELAY_MS)
       continue
     }
 

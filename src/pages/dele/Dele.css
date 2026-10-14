@@ -104,6 +104,9 @@
 .dl-btn.danger { background: #b91c1c; }
 .dl-btn.danger-text { color: #b91c1c; }
 .dl-btn.big { padding: 14px 24px; font-size: 15px; margin-top: 6px; }
+/* Refresh: the arrow turns while the numbers are being fetched again */
+.dl-refresh.is-busy { opacity: 1; cursor: progress; color: #6d4fc2; border-color: #d9ccf6; background: #f6f2fd; }
+.dl-refresh:active:not(:disabled) { transform: scale(0.97); }
 .dl-link { border: none; background: none; color: #7c3aed; font-weight: 600; cursor: pointer; font-family: inherit; font-size: 13px; }
 
 .dl-chip {
@@ -433,7 +436,7 @@
   .dl-ov-metric b { font-size: 22px; }
   .dl-ov-panel { padding: 18px; border-radius: 16px; }
   .dl-ov-chart { height: 190px; }
-  .dl-ov .dl-ov-hero { padding: 22px; }
+  .dl-ov .dl-ov-hero { min-height: 0; padding: 18px 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .dl-ov-metric, .dl-ov-bars button span { transition: none; }

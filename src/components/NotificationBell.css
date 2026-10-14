@@ -51,22 +51,24 @@
   box-shadow: 0 0 0 2px #fff;
 }
 
-/* ---- panel ---- */
+/* ---- panel ----
+   App.css gives every bare <button> a full width, padding and violet fill, so
+   each button in here sets its own. */
 .nx-bell-panel {
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  width: min(340px, calc(100vw - 32px));
-  max-height: 70vh;
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(520px, 72vh);
   display: flex;
   flex-direction: column;
   background: #fff;
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 14px;
-  box-shadow: 0 16px 40px rgba(17, 24, 39, 0.16);
+  border: 1px solid #e6dff8;
+  border-radius: 18px;
+  box-shadow: 0 18px 44px rgba(76, 58, 153, 0.16), 0 2px 6px rgba(17, 24, 39, 0.05);
   overflow: hidden;
   z-index: 1000;
-  animation: nx-bell-in 0.14s ease;
+  animation: nx-bell-in 0.16s ease;
 }
 @keyframes nx-bell-in {
   from { opacity: 0; transform: translateY(-6px); }
@@ -77,92 +79,72 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border, #e5e7eb);
-  font-weight: 700;
-  font-size: 14px;
+  gap: 10px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid #f0ebfb;
+  font-size: 15px;
+  font-weight: 600;
   color: #111827;
 }
+.nx-bell-head-title { display: inline-flex; align-items: center; gap: 8px; }
+.nx-bell-count {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #efe8fd;
+  color: #6d4fc2;
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 600;
+}
 .nx-bell-clear {
+  width: auto;
+  padding: 6px 10px;
   border: none;
+  border-radius: 8px;
   background: none;
-  color: var(--primary, #7c3aed);
-  font-size: 12px;
+  color: #6d4fc2;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  padding: 2px 4px;
+  transition: background 0.15s ease;
 }
-.nx-bell-clear:hover { text-decoration: underline; }
+.nx-bell-clear:hover { background: #f3effc; opacity: 1; }
 
-.nx-bell-list {
-  overflow-y: auto;
-}
+.nx-bell-list { overflow-y: auto; overscroll-behavior: contain; }
 
 .nx-bell-item {
   position: relative;
   display: flex;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 12px;
   width: 100%;
+  padding: 14px 44px 14px 16px; /* room for the X on the right */
+  border-bottom: 1px solid #f3f0fa;
+  background: #fff;
   text-align: left;
-  padding: 11px 30px 11px 14px; /* room for the X on the right */
-  border: none;
-  border-bottom: 1px solid #f3f4f6;
-  background: none;
   cursor: pointer;
   transition: background 0.12s ease;
 }
-.nx-bell-item:hover { background: #faf9ff; }
+.nx-bell-item:last-child { border-bottom: none; }
+.nx-bell-item:hover { background: #faf8ff; }
+.nx-bell-item:focus-visible { outline: 2px solid #b9a6ec; outline-offset: -2px; }
 
-/* New (since last opened): tinted background + purple left bar. */
-.nx-bell-item.is-new {
-  background: #f3efff;
-  box-shadow: inset 3px 0 0 var(--primary, #7c3aed);
-}
-.nx-bell-item.is-new:hover { background: #ece5ff; }
-
-/* Small dot marking an unread item. */
-.nx-bell-newdot {
-  position: absolute;
-  top: 14px;
-  right: 28px;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--primary, #7c3aed);
-}
-
-/* Per-item delete (X). */
-.nx-bell-x {
-  position: absolute;
-  top: 8px;
-  right: 6px;
-  width: 22px;
-  height: 22px;
-  border: none;
-  background: none;
-  color: #9ca3af;
-  font-size: 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.nx-bell-x:hover { background: #f3f4f6; color: #ef4444; }
+/* New since the panel was last opened: a soft tint, no heavy bar. */
+.nx-bell-item.is-new { background: #f8f5ff; }
+.nx-bell-item.is-new:hover { background: #f1ebfd; }
 
 .nx-bell-dot {
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  color: #fff;
+  font-size: 15px;
 }
-.nx-bell-dot.mat { background: var(--primary, #7c3aed); }
-.nx-bell-dot.lib { background: #0ea5e9; }
+.nx-bell-dot.mat { background: #efe8fd; color: #6d4fc2; }
+.nx-bell-dot.lib { background: #e3f1fb; color: #0b78b8; }
 
 .nx-bell-body {
   display: flex;
@@ -171,26 +153,77 @@
   min-width: 0;
 }
 .nx-bell-title {
-  font-weight: 700;
-  font-size: 13px;
-  color: #111827;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #1f1b3a;
+  overflow-wrap: anywhere;
 }
 .nx-bell-text {
-  font-size: 12.5px;
-  color: #4b5563;
-  line-height: 1.35;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #6b6785;
 }
 .nx-bell-time {
-  font-size: 11px;
-  color: #9ca3af;
-  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+  font-size: 12px;
+  color: #a39fba;
+}
+.nx-bell-new {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Delete one: quiet until you reach for it (always there on touch screens). */
+.nx-bell-x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: #a39fba;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 1;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.nx-bell-x:hover { background: #fdeceb; color: #d6453d; opacity: 1; }
+@media (hover: hover) {
+  .nx-bell-x { opacity: 0.55; }
+  .nx-bell-item:hover .nx-bell-x,
+  .nx-bell-x:focus-visible { opacity: 1; }
 }
 
 .nx-bell-empty {
   text-align: center;
-  padding: 30px 22px;
-  color: #6b7280;
+  padding: 34px 26px 38px;
+  color: #6b6785;
 }
-.nx-bell-empty i { font-size: 26px; color: #c4b5fd; }
-.nx-bell-empty p { margin: 10px 0 4px; font-weight: 600; color: #374151; }
-.nx-bell-empty span { font-size: 12px; color: #9ca3af; }
+.nx-bell-empty i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  background: #f3effc;
+  font-size: 22px;
+  color: #a58ee6;
+}
+.nx-bell-empty p { margin: 14px 0 4px; font-size: 14.5px; font-weight: 600; color: #1f1b3a; }
+.nx-bell-empty span { font-size: 13px; line-height: 1.5; color: #a39fba; }

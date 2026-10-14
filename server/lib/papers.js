@@ -113,9 +113,13 @@ export function describePaper(paper) {
     reviewedAt: doc.reviewedAt || null,
     uploader: {
       signedIn: Boolean(doc.uploaderId),
+      // No account behind it: a named guest is "Name (Uploader)", a mysterious
+      // one (or an erased account) is just "Uploader".
       label: doc.uploaderId
         ? `${doc.uploaderName || doc.uploaderEmail || 'A user'} (${doc.uploaderRole || 'user'})`
-        : doc.source === 'dele' || doc.source === 'seed' ? 'Dele (owner)' : 'Not logged in',
+        : doc.source === 'dele' || doc.source === 'seed'
+          ? 'Dele (owner)'
+          : doc.uploaderName ? `${doc.uploaderName} (Uploader)` : 'Uploader',
       name: doc.uploaderName || null,
       email: doc.uploaderEmail || null,
       role: doc.uploaderRole || null,

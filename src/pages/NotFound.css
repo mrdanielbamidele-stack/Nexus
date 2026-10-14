@@ -97,12 +97,24 @@
   text-decoration: none;
   text-shadow: none;
   transition: transform 0.15s ease, background-color 0.15s ease;
-  max-width: 190px;
+  /* The label always sits on one row, however narrow the page gets. */
+  width: auto;
+  max-width: 100%;
+  white-space: nowrap;
+  /* On wide screens .content is a flex column, which would stretch the link
+     across the whole row; keep it only as wide as its label. */
+  align-self: flex-start;
 }
 
 .notfound-page .content .home-link:hover {
   transform: translateY(-2px);
   background: #ede9fe;
+}
+
+/* Inside the app frame (sidebar + page) the 404 takes the whole page area, edge
+   to edge: the frame's own padding is dropped so no gutter shows around it. */
+.main:has(> .notfound-page) {
+  padding: 0;
 }
 
 /* --- Wider screens: pin the scene into the top-left corner (original look)

@@ -7,6 +7,7 @@ import { fail, wrap } from '../lib/errors.js'
 import { clientIp, whoIsThis } from '../lib/session.js'
 import { limit } from '../lib/throttle.js'
 import { pqKey } from '../lib/courses.js'
+import { usernameProblem } from '../../src/lib/schoolEmail.js'
 
 /* ------------------------------ notifications ----------------------------- */
 
@@ -66,6 +67,12 @@ export const eventsRouter = Router()
 const TYPES = new Set(['open', 'read', 'download', 'link', 'active'])
 const short = (value, max) => (typeof value === 'string' ? value.slice(0, max) : undefined)
 
+// Someone who isn't signed in only counts on the pages made for them: the
+// sign-in screens (/auth for students, /admin for staff) and the open /upload
+// page. Anything else arriving without a session is a leftover - e.g. a "log in
+// as" session that ran out while a paper was still open - and is dropped.
+const SIGNED_OUT_PATHS = new Set(['/auth', '/admin', '/upload'])
+
 eventsRouter.post('/', wrap(async (req, res) => {
   await limit(`events:${clientIp(req)}`, { max: 900, windowSec: 3600, what: 'requests' })
 
@@ -81,19 +88,27 @@ eventsRouter.post('/', wrap(async (req, res) => {
   const papers = ids.length ? await Paper.find({ _id: { $in: ids } }).select('courseCode courseKey session version') : []
   const byId = new Map(papers.map(p => [String(p._id), p]))
 
+  // A guest on /upload may have given a name there: "Name (Uploader)". Without
+  // one they are just "Uploader". Signed-in people always use their account.
+  const given = String(req.body?.uploaderName ?? '').trim()
+  const guestName = !found && given && !usernameProblem(given) ? given : null
+
   const docs = []
   for (const e of incoming) {
     if (!TYPES.has(e?.type)) continue
+    if (!found && !(e.type === 'active' && SIGNED_OUT_PATHS.has(e.path))) continue
     const paper = byId.get(String(e.paperId))
     const seconds = e.type === 'read' || e.type === 'active'
       ? Math.max(0, Math.min(300, Math.round(Number(e.seconds) || 0)))
       : 0
 
+    const asGuest = guestName && e.path === '/upload'
+
     docs.push({
       type: e.type,
       userId: found?.user._id || null,
-      role: found?.user.role,
-      name: found?.user.username,
+      role: found?.user.role || (asGuest ? 'uploader' : undefined),
+      name: found?.user.username || (asGuest ? guestName : undefined),
       email: found?.user.email,
       anonId: short(req.body?.anonId, 64),
       paperId: paper?._id || null,

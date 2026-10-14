@@ -23,6 +23,17 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString();
 }
 
+// "New past questions added: PHY 101 2023/2024" reads best as the paper's name
+// first and what happened under it, instead of repeating the course twice.
+const ADDED = "New past questions added: ";
+
+function describe(n) {
+  if (n.body.startsWith(ADDED)) {
+    return { title: n.body.slice(ADDED.length), note: "New past questions added" };
+  }
+  return { title: formatCode(n.course_id), note: n.body };
+}
+
 export default function NotificationBell() {
   const { items, loaded, unreadCount, seenAt, markSeen, dismiss, dismissAll } =
     useNotifications();
@@ -62,6 +73,8 @@ export default function NotificationBell() {
     navigate(`/${codeToSlug(n.course_id)}`);
   }
 
+  const newCount = open ? items.filter((n) => n.created_at > openedAt).length : 0;
+
   function removeOne(e, id) {
     e.stopPropagation();
     dismiss(id);
@@ -83,7 +96,10 @@ export default function NotificationBell() {
       {open && (
         <div className="nx-bell-panel" role="menu">
           <div className="nx-bell-head">
-            <span>Notifications</span>
+            <span className="nx-bell-head-title">
+              Notifications
+              {newCount > 0 && <em className="nx-bell-count">{newCount} new</em>}
+            </span>
             {items.length > 0 && (
               <button className="nx-bell-clear" onClick={dismissAll}>
                 Delete all
@@ -103,6 +119,7 @@ export default function NotificationBell() {
             ) : (
               items.map((n) => {
                 const isNew = n.created_at > openedAt;
+                const { title, note } = describe(n);
                 return (
                   <div
                     key={n.id}
@@ -112,14 +129,16 @@ export default function NotificationBell() {
                     tabIndex={0}
                     onKeyDown={(e) => e.key === "Enter" && openCourse(n)}
                   >
-                    {isNew && <span className="nx-bell-newdot" aria-label="new" />}
                     <span className="nx-bell-dot mat">
                       <i className="fa-solid fa-file-arrow-up" />
                     </span>
                     <span className="nx-bell-body">
-                      <span className="nx-bell-title">{formatCode(n.course_id)}</span>
-                      <span className="nx-bell-text">{n.body}</span>
-                      <span className="nx-bell-time">{timeAgo(n.created_at)}</span>
+                      <span className="nx-bell-title">{title}</span>
+                      <span className="nx-bell-text">{note}</span>
+                      <span className="nx-bell-time">
+                        {timeAgo(n.created_at)}
+                        {isNew && <span className="nx-bell-new">New</span>}
+                      </span>
                     </span>
                     <button
                       className="nx-bell-x"

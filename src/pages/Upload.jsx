@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router'
 import CameraCapture from '../components/CameraCapture'
@@ -11,6 +11,10 @@ import UiIcon from '../components/UiIcon'
 import { isAuthed } from '../lib/studentAuth'
 import { getAllCatalogCourses } from '../lib/studentCourses'
 import { prepareImage, rotateImage } from '../lib/imageTools'
+import { plural } from '../lib/format'
+import { usernameProblem } from '../lib/schoolEmail'
+import { getUploader, setUploader } from '../lib/uploader'
+import PaperReview from './dele/PaperReview'
 import {
   MAX_DOC_BYTES, MAX_DOCS, MAX_PAGES, DOC_EXTENSIONS, IMAGE_EXTENSIONS, SESSIONS,
   classifyFile, extOf, formatBytes, submitUpload, uuid,
@@ -37,6 +41,7 @@ const HINTS = {
   course: 'Choose the course first - start typing its code or title and pick it from the list.',
   year: 'Which year is the paper from? Tap one of the years above.',
   files: 'Add the paper to send - take photos, choose photos or upload a document.',
+  who: 'Type your name, or choose to stay mysterious, then send.',
 }
 
 const sendingMessage = ratio =>
@@ -116,6 +121,7 @@ function Hint({ children }) {
   )
 }
 
+// Sprays over the whole page when an upload finishes.
 function Confetti() {
   const [bits] = useState(() =>
     Array.from({ length: 36 }, (_, i) => ({
@@ -130,7 +136,7 @@ function Confetti() {
     }))
   )
   return (
-    <div className="up-confetti" aria-hidden="true">
+    <div className="up-confetti screen" aria-hidden="true">
       {bits.map(b => (
         <i
           key={b.id}
@@ -190,6 +196,123 @@ function PageLightbox({ pages, index, onIndex, onClose, onRotate, onRetake, onRe
   )
 }
 
+// "3 pages", "1 document", "2 pages and 1 document".
+const countParts = (pages, docs) => [
+  pages ? plural(pages, 'page') : null,
+  docs ? plural(docs, 'document') : null,
+].filter(Boolean).join(' and ')
+
+// Papers going up in the background, one row each with its own bar.
+function UploadJobs({ jobs, owner, panelRef, onRetry, onDismiss }) {
+  if (!jobs.length) return null
+
+  return (
+    <section className="up-jobs" ref={panelRef} aria-label="Uploads in progress">
+      {jobs.map(job => {
+        const ratio = job.total ? job.done / job.total : 0
+        const label = job.paper?.title || job.title || `${job.courseCode} ${job.session}`
+        return (
+          <div className={`up-job is-${job.state}`} key={job.id}>
+            <span className="up-job-icon">
+              {job.state === 'sending' && <UiIcon name="loader" size={18} spin />}
+              {job.state === 'done' && <UiIcon name="check" size={18} />}
+              {job.state === 'error' && <UiIcon name="alert" size={18} />}
+            </span>
+
+            <div className="up-job-body">
+              <strong>{job.courseCode} · {job.session}</strong>
+              <span>
+                {job.state === 'sending' && `${sendingMessage(ratio)} ${job.done} of ${plural(job.total, 'file')}`}
+                {job.state === 'done' && (owner
+                  ? <>Published as <b>{label}</b>. Students can open it now.</>
+                  : <>Sent. It will show up once our team has checked it.</>)}
+                {job.state === 'error' && job.error}
+              </span>
+              {job.state === 'sending' && (
+                <span className="up-job-bar" aria-hidden="true">
+                  <span style={{ width: `${Math.max(4, ratio * 100)}%` }} />
+                </span>
+              )}
+            </div>
+
+            <div className="up-job-actions">
+              {job.state === 'error' && (
+                <button type="button" className="up-btn primary" onClick={() => onRetry(job.id)}>Try again</button>
+              )}
+              {job.state !== 'sending' && (
+                <button type="button" className="up-icon-btn" onClick={() => onDismiss(job.id)} aria-label="Dismiss">
+                  <UiIcon name="x" size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </section>
+  )
+}
+
+const STATUS_ORDER = { approved: 0, pending: 1 }
+
+// Owner: every accepted and waiting version Nexus has for the chosen course
+// (just the chosen year once there is one), laid out like Compare. Shows
+// nothing at all when there is nothing yet.
+function ExistingPapers({ course, session, found, onChanged, onDeleted, onRefresh }) {
+  if (!found || found.code !== course.code) return null
+
+  const papers = found.papers
+    .filter(p => p.status !== 'rejected' && (!session || p.session === session))
+    .sort((a, b) =>
+      b.session.localeCompare(a.session)
+      || STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+      || a.version - b.version
+      || new Date(a.createdAt) - new Date(b.createdAt))
+  if (!papers.length) return null
+
+  const sessions = [...new Set(papers.map(p => p.session))]
+  const waiting = papers.filter(p => p.status === 'pending').length
+
+  return (
+    <section className="dl-cmp-course up-have">
+      <header className="dl-cmp-head">
+        <h2>
+          {course.code}
+          {course.title && <small>{course.title}</small>}
+        </h2>
+        <span>
+          {plural(papers.length, 'paper')} on Nexus
+          {waiting > 0 && <b> · {waiting} waiting</b>}
+        </span>
+      </header>
+
+      <div className="dl-cmp-grid">
+        {sessions.map(name => {
+          const group = papers.filter(p => p.session === name)
+          const live = group.filter(p => p.status === 'approved').length
+          return (
+            <Fragment key={name}>
+              <h3 className="dl-cmp-session">
+                {name}
+                {live > 1 && <span>{live} public versions</span>}
+              </h3>
+              {group.map(paper => (
+                <PaperReview
+                  key={paper.id}
+                  paper={paper}
+                  compact
+                  onChanged={onChanged}
+                  onDeleted={onDeleted}
+                  onRefresh={onRefresh}
+                />
+              ))}
+            </Fragment>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 /* ---------------------------------- page ---------------------------------- */
 
 // `variant="staff"` is the admin version (/admin/upload): same flow, but it asks
@@ -217,24 +340,33 @@ export default function Upload({ variant = 'student' }) {
   const [lightbox, setLightbox] = useState(null) // page index
   const [dragId, setDragId] = useState(null)
   const [overId, setOverId] = useState(null)
-  const [stage, setStage] = useState('form')  // 'form' | 'sending' | 'done'
-  const [progress, setProgress] = useState({ done: 0, total: 0 })
-  const [error, setError] = useState('')
-  const [hint, setHint] = useState(null)      // 'course' | 'year' | 'files' - what they missed
+  const [stage, setStage] = useState('form')  // 'form' | 'done' (the thank-you screen)
+  const [hint, setHint] = useState(null)      // 'course' | 'year' | 'files' | 'who' - what they missed
+  // Signed-out visitors: their name, or "stay mysterious" (remembered on this device).
+  const [sender, setSender] = useState(getUploader) // { name, mysterious }
   const [nudge, setNudge] = useState(false)
   const [title, setTitle] = useState('')      // owner: what the paper will be called
-  const [published, setPublished] = useState(null) // owner: the paper that just went live
+  // Papers being sent in the background, so the form is free for the next one.
+  const [jobs, setJobs] = useState([])
+  const [lastJob, setLastJob] = useState(null)  // the one the thank-you screen follows
+  const [bursts, setBursts] = useState([])      // confetti sprays, one per finished upload
+  // Owner: what Nexus already has for the chosen course ({ code, papers }).
+  const [existing, setExisting] = useState(null)
+  const [listVersion, setListVersion] = useState(0) // bumped when a background send finishes
 
   const courseInput = useRef(null)
   const courseField = useRef(null)
   const yearField = useRef(null)
   const addZone = useRef(null)
+  const whoField = useRef(null)
+  const whoInput = useRef(null)
   const anyInput = useRef(null)
   const photoInput = useRef(null)
   const docInput = useRef(null)
   const nativeInput = useRef(null)
   const retakeTarget = useRef(null) // page being replaced by the native camera app
-  const attempt = useRef(null)      // { id, sent } - lets a failed send resume
+  const jobWork = useRef(new Map()) // job id -> what to send (files stay out of state)
+  const jobsPanel = useRef(null)
   const urls = useRef({ pages, docs })
   urls.current = { pages, docs }
 
@@ -246,9 +378,6 @@ export default function Upload({ variant = 'student' }) {
       urls.current.docs.forEach(d => URL.revokeObjectURL(d.url))
     }
   }, [owner])
-
-  // Any change to what's being sent starts a fresh submission.
-  useEffect(() => { attempt.current = null }, [pages, docs, courseCode, session])
 
   // Owner: the title fills itself in as soon as the course and year are chosen
   // (and again after publishing, since the next version number moves on).
@@ -262,7 +391,27 @@ export default function Upload({ variant = 'student' }) {
       .then(result => { if (!cancelled) setTitle(result.title) })
       .catch(() => { if (!cancelled) setTitle('') })
     return () => { cancelled = true }
-  }, [owner, dele, courseCode, session, stage])
+  }, [owner, dele, courseCode, session, listVersion])
+
+  // Owner: everything Nexus already has for the chosen course, newest first.
+  // Refreshed whenever a background send finishes.
+  useEffect(() => {
+    if (!owner || !courseCode) return
+    let cancelled = false
+    dele.call(`/papers?course=${encodeURIComponent(courseCode)}`)
+      .then(({ papers }) => { if (!cancelled) setExisting({ code: courseCode, papers }) })
+      .catch(() => { if (!cancelled) setExisting({ code: courseCode, papers: [], failed: true }) })
+    return () => { cancelled = true }
+  }, [owner, dele, courseCode, listVersion])
+
+  // Leaving (or closing the tab) while papers are still going up would cut them off.
+  const sendingJobs = jobs.some(j => j.state === 'sending')
+  useEffect(() => {
+    if (!sendingJobs) return
+    const warn = e => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [sendingJobs])
 
   // A file dropped just outside the drop zone shouldn't navigate the tab away.
   useEffect(() => {
@@ -438,106 +587,189 @@ export default function Upload({ variant = 'student' }) {
     if (files.length) addFiles(files)
   }
 
+  // Someone who isn't signed in says who is sending, or stays mysterious.
+  const senderName = sender.name.trim()
+  const senderProblem = senderName ? usernameProblem(senderName) : null
+  const needsWho = !signedIn && (Boolean(senderProblem) || (!senderName && !sender.mysterious))
+
   // What's still missing, in the order the page asks for it.
-  const missing = !courseCode ? 'course' : !session ? 'year' : !pages.length && !docs.length ? 'files' : null
+  const missing = !courseCode ? 'course'
+    : !session ? 'year'
+      : !pages.length && !docs.length ? 'files'
+        : needsWho ? 'who'
+          : null
+
+  function changeSender(next) {
+    setSender(next)
+    setUploader(next)
+    setHint(h => (h === 'who' ? null : h))
+  }
 
   // Scroll to the thing they missed, wiggle it, and say what to do there.
   function guideTo(field) {
     setHint(field)
-    const target = { course: courseField, year: yearField, files: addZone }[field].current
+    const target = { course: courseField, year: yearField, files: addZone, who: whoField }[field].current
     const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     target.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'center' })
     if (!calm) target.animate(SHAKE, { duration: 420, easing: 'ease-in-out' })
     // Focus once the scroll has landed - focusing mid-scroll can cut it short.
     if (field === 'course') setTimeout(() => courseInput.current?.focus({ preventScroll: true }), calm ? 0 : 500)
+    if (field === 'who' && !sender.mysterious) setTimeout(() => whoInput.current?.focus({ preventScroll: true }), calm ? 0 : 500)
     if (field === 'files') {
       setNudge(true)
       setTimeout(() => setNudge(false), 1600)
     }
   }
 
-  async function submit() {
-    if (stage === 'sending') return
-    if (missing) {
-      guideTo(missing)
-      return
-    }
-    setStage('sending')
-    setError('')
-    attempt.current ||= { id: uuid(), sent: {} }
+  const patchJob = (id, patch) => setJobs(list => list.map(j => (j.id === id ? { ...j, ...patch } : j)))
+
+  // Send one queued paper. Safe to call again after a failure - files that
+  // already went up are skipped (see submitUpload).
+  async function runJob(id) {
+    const work = jobWork.current.get(id)
+    if (!work) return
+    patchJob(id, { state: 'sending', error: '' })
     try {
       const result = await submitUpload({
-        attempt: attempt.current,
-        courseCode,
-        session,
-        pages: pages.map(p => p.blob),
-        docs: docs.map(d => d.file),
+        attempt: work.attempt,
+        courseCode: work.courseCode,
+        session: work.session,
+        pages: work.pages,
+        docs: work.docs,
         as: staff ? 'admin' : 'student',
+        uploaderName: work.uploaderName,
         recordPath: owner ? '/dele/papers' : undefined,
-        onProgress: (done, total) => setProgress({ done, total }),
+        onProgress: (done, total) => patchJob(id, { done, total }),
       })
-      if (owner) setPublished(result.paper)
-      setStage('done')
+      jobWork.current.delete(id)
+      patchJob(id, { state: 'done', paper: owner ? result.paper : null })
+      setListVersion(v => v + 1)
+
+      // Confetti for this one, wherever they are on the page by now.
+      setBursts(list => [...list, id])
+      setTimeout(() => setBursts(list => list.filter(b => b !== id)), 4500)
     } catch (err) {
-      setError(err.message)
-      setStage('form')
+      patchJob(id, { state: 'error', error: err.message })
     }
   }
 
-  function startOver() {
+  // Take what is on the form and send it in the background. The thank-you
+  // screen follows it; "Upload another" gives back a clean form while it carries on.
+  function queueUpload() {
+    const id = uuid()
+    jobWork.current.set(id, {
+      courseCode,
+      session,
+      pages: pages.map(p => p.blob),
+      docs: docs.map(d => d.file),
+      uploaderName: signedIn ? '' : senderName,
+      attempt: { id: uuid(), sent: {} },
+    })
+    setJobs(list => [
+      {
+        id, courseCode, session, title,
+        parts: countParts(pages.length, docs.length),
+        done: 0, total: pages.length + docs.length, state: 'sending', error: '', paper: null,
+      },
+      ...list,
+    ])
+
+    // Page previews are only for the form; the blobs themselves live on in the job.
     pages.forEach(p => URL.revokeObjectURL(p.url))
     docs.forEach(d => URL.revokeObjectURL(d.url))
     setPages([])
     setDocs([])
     setNotices([])
-    setError('')
     setHint(null)
-    setPublished(null)
-    // The year they just sent is not the one they are about to send next. The
-    // course stays, since the next paper is often from the same course.
+    setPreviewId(null)
+    // Nothing carries over: the next paper starts from a blank form.
+    setCourseCode('')
     setSession('')
-    setStage('form')
+    setTitle('')
+
+    setLastJob(id)
+    setStage('done')
+    runJob(id)
   }
 
+  function submit() {
+    if (missing) {
+      guideTo(missing)
+      return
+    }
+    queueUpload()
+  }
+
+  // Everything was already cleared when the upload was queued.
+  const startOver = () => setStage('form')
+
   const course = courseList.find(c => c.code === courseCode)
-  const sending = stage === 'sending'
   const total = pages.length + docs.length
 
+  // Confetti for every upload that finishes, on any screen.
+  const celebration = bursts.map(id => <Confetti key={id} />)
+
   if (stage === 'done') {
-    const parts = [
-      pages.length ? `${pages.length} page${pages.length === 1 ? '' : 's'}` : null,
-      docs.length ? `${docs.length} document${docs.length === 1 ? '' : 's'}` : null,
-    ].filter(Boolean).join(' and ')
+    const job = jobs.find(j => j.id === lastJob)
+    const state = job?.state || 'done'
+    const ratio = job?.total ? job.done / job.total : 0
+    const others = jobs.filter(j => j.state === 'sending' && j.id !== lastJob).length
 
     return (
       <div className="up-page">
         <ScrollToTop />
+        {celebration}
         <section className="up-card up-done">
-          <Confetti />
-          <span className="up-done-icon"><UiIcon name="check" size={38} /></span>
-          {owner ? (
+          <span className={`up-done-icon is-${state}`}>
+            <UiIcon name={state === 'sending' ? 'loader' : state === 'error' ? 'alert' : 'check'} size={38} spin={state === 'sending'} />
+          </span>
+
+          {state === 'sending' && (
             <>
-              <h1 className="up-serif">Published</h1>
+              <h1 className="up-serif">Sending it over…</h1>
               <p>
-                <strong>{published?.title || `${course?.code} · ${session}`}</strong> is live. It was approved
-                automatically, so students can open it now.
+                <strong>{job.courseCode}</strong> · {job.session} is going up now. You can start the next
+                paper while it finishes - it will celebrate when it is done.
               </p>
+              <div className="up-done-bar" aria-hidden="true"><span style={{ width: `${Math.max(4, ratio * 100)}%` }} /></div>
             </>
-          ) : (
+          )}
+
+          {state === 'done' && owner && (
             <>
-              <h1 className="up-serif">Thank you!</h1>
+              <h1 className="up-serif">Published!</h1>
               <p>
-                {parts} for <strong>{course?.code}</strong> · {session} {total === 1 ? 'is' : 'are'} on the way
-                to our team. Everything is checked before it goes live, so it may take a little while to show up.
+                <strong>{job?.paper?.title || `${job?.courseCode} ${job?.session}`}</strong> is live.
+                It was approved automatically, so students can open it now.
               </p>
             </>
           )}
+
+          {state === 'done' && !owner && (
+            <>
+              <h1 className="up-serif">Thank you!</h1>
+              <p>
+                {job.parts} for <strong>{job.courseCode}</strong> · {job.session} {job.total === 1 ? 'is' : 'are'} on
+                the way to our team. Everything is checked before it goes live, so it may take a little while to show up.
+              </p>
+            </>
+          )}
+
+          {state === 'error' && (
+            <>
+              <h1 className="up-serif">That didn&apos;t go through</h1>
+              <p>{job.error}</p>
+            </>
+          )}
+
+          {others > 0 && <p className="up-done-others">{others} other {others === 1 ? 'paper is' : 'papers are'} still sending.</p>}
+
           <div className="up-done-actions">
             <button type="button" className="up-btn primary" onClick={startOver}>
               <UiIcon name="plus" size={17} /> Upload another
             </button>
-            {owner && published?.courseKey && (
-              <Link to={`/delealone/compare?course=${published.courseKey}`} className="up-btn">See it in Compare</Link>
+            {state === 'error' && (
+              <button type="button" className="up-btn" onClick={() => runJob(job.id)}>Try again</button>
             )}
             {!owner && (signedIn
               ? <Link to={staff ? '/admin' : '/'} className="up-btn">Back to dashboard</Link>
@@ -553,11 +785,11 @@ export default function Upload({ variant = 'student' }) {
     : docs.length && !pages.length
       ? `${docs.length} document${docs.length === 1 ? '' : 's'}`
       : total ? `${total} files` : ''
-  const ratio = progress.total ? progress.done / progress.total : 0
 
   return (
     <div className="up-page">
       <ScrollToTop />
+      {celebration}
       <header className="up-head">
         <h1 className="up-title">Upload</h1>
         <p className="up-lead">
@@ -568,6 +800,17 @@ export default function Upload({ variant = 'student' }) {
               : 'Share a past question paper with everyone studying the same course.'}
         </p>
       </header>
+
+      <UploadJobs
+        jobs={jobs}
+        owner={owner}
+        panelRef={jobsPanel}
+        onRetry={runJob}
+        onDismiss={id => {
+          jobWork.current.delete(id)
+          setJobs(list => list.filter(j => j.id !== id))
+        }}
+      />
 
       {/* The owner doesn't need the pitch - straight to the form */}
       {!owner && (staff ? (
@@ -595,7 +838,6 @@ export default function Upload({ variant = 'student' }) {
             value={courseCode}
             onChange={code => { setCourseCode(code); if (code) setHint(h => (h === 'course' ? null : h)) }}
             invalid={hint === 'course' && !courseCode}
-            disabled={sending}
             inputRef={courseInput}
           />
           {hint === 'course' && !courseCode && <Hint>{HINTS.course}</Hint>}
@@ -611,7 +853,6 @@ export default function Upload({ variant = 'student' }) {
                 role="radio"
                 aria-checked={session === s}
                 className={`up-year${session === s ? ' on' : ''}`}
-                disabled={sending}
                 onClick={() => { setSession(s); setHint(h => (h === 'year' ? null : h)) }}
               >
                 {session === s && <UiIcon name="check" size={14} />}
@@ -622,20 +863,32 @@ export default function Upload({ variant = 'student' }) {
           {hint === 'year' && !session && <Hint>{HINTS.year}</Hint>}
         </div>
 
-        {owner && (
+        {owner && title && (
           <p className="up-saveas">
             <UiIcon name="doc" size={18} />
-            {title ? (
-              <>
-                <span>Will be saved as</span>
-                <strong>{title}</strong>
-              </>
-            ) : (
-              <span>Pick a course and a year to see what this will be saved as.</span>
-            )}
+            <span>Will be saved as</span>
+            <strong>{title}</strong>
           </p>
         )}
       </section>
+
+      {/* Owner: what is already there for this course / year */}
+      {owner && course && (
+        <ExistingPapers
+          course={course}
+          session={session}
+          found={existing}
+          onChanged={updated => setExisting(found => found && ({
+            ...found,
+            papers: found.papers.map(p => (p.id === updated.id ? updated : p)),
+          }))}
+          onDeleted={id => setExisting(found => found && ({
+            ...found,
+            papers: found.papers.filter(p => p.id !== id),
+          }))}
+          onRefresh={() => setListVersion(v => v + 1)}
+        />
+      )}
 
       {/* 2 - the paper itself */}
       <section className="up-card">
@@ -669,9 +922,9 @@ export default function Upload({ variant = 'student' }) {
           </div>
 
           <div className={`up-actions${nudge ? ' nudge' : ''}`}>
-            <ActionTile tone="peach" icon="camera" title="Take photos" desc="Snap it page by page" onClick={() => openCamera()} disabled={sending} />
-            <ActionTile tone="blue" icon="image" title="Choose photos" desc="From your gallery" onClick={() => photoInput.current.click()} disabled={sending} />
-            <ActionTile tone="sage" icon="file" title="Upload a document" desc="PDF, Word and more" onClick={() => docInput.current.click()} disabled={sending} />
+            <ActionTile tone="peach" icon="camera" title="Take photos" desc="Snap it page by page" onClick={() => openCamera()} />
+            <ActionTile tone="blue" icon="image" title="Choose photos" desc="From your gallery" onClick={() => photoInput.current.click()} />
+            <ActionTile tone="sage" icon="file" title="Upload a document" desc="PDF, Word and more" onClick={() => docInput.current.click()} />
           </div>
 
           {hint === 'files' && !total && <Hint>{HINTS.files}</Hint>}
@@ -701,7 +954,7 @@ export default function Upload({ variant = 'student' }) {
                         {open ? 'Hide preview' : 'Preview'}
                       </button>
                     )}
-                    <button type="button" className="up-icon-btn" onClick={() => removeDoc(doc.id)} aria-label={`Remove ${doc.name}`} disabled={sending}>
+                    <button type="button" className="up-icon-btn" onClick={() => removeDoc(doc.id)} aria-label={`Remove ${doc.name}`}>
                       <UiIcon name="trash" size={16} />
                     </button>
                   </div>
@@ -731,7 +984,7 @@ export default function Upload({ variant = 'student' }) {
                 <li
                   key={page.id}
                   className={`up-tile${dragId === page.id ? ' dragging' : ''}${overId === page.id && dragId !== page.id ? ' over' : ''}`}
-                  draggable={!sending}
+                  draggable
                   onDragStart={() => setDragId(page.id)}
                   onDragOver={e => { e.preventDefault(); setOverId(page.id) }}
                   onDrop={e => { e.preventDefault(); e.stopPropagation(); dropOnPage(page.id) }}
@@ -742,19 +995,19 @@ export default function Upload({ variant = 'student' }) {
                   </button>
                   <span className="up-tile-n">{i + 1}</span>
                   <div className="up-tile-bar">
-                    <button type="button" onClick={() => movePage(page.id, -1)} disabled={i === 0 || sending} aria-label="Move earlier">
+                    <button type="button" onClick={() => movePage(page.id, -1)} disabled={i === 0} aria-label="Move earlier">
                       <UiIcon name="left" size={15} />
                     </button>
-                    <button type="button" onClick={() => rotatePage(page.id)} disabled={sending} aria-label="Rotate">
+                    <button type="button" onClick={() => rotatePage(page.id)} aria-label="Rotate">
                       <UiIcon name="rotate" size={15} />
                     </button>
-                    <button type="button" onClick={() => openCamera(page.id)} disabled={sending} aria-label="Retake">
+                    <button type="button" onClick={() => openCamera(page.id)} aria-label="Retake">
                       <UiIcon name="camera" size={15} />
                     </button>
-                    <button type="button" onClick={() => removePage(page.id)} disabled={sending} aria-label="Remove">
+                    <button type="button" onClick={() => removePage(page.id)} aria-label="Remove">
                       <UiIcon name="trash" size={15} />
                     </button>
-                    <button type="button" onClick={() => movePage(page.id, 1)} disabled={i === pages.length - 1 || sending} aria-label="Move later">
+                    <button type="button" onClick={() => movePage(page.id, 1)} disabled={i === pages.length - 1} aria-label="Move later">
                       <UiIcon name="right" size={15} />
                     </button>
                   </div>
@@ -763,10 +1016,10 @@ export default function Upload({ variant = 'student' }) {
 
               {pages.length < MAX_PAGES && (
                 <li className="up-tile add">
-                  <button type="button" onClick={() => openCamera()} disabled={sending}>
+                  <button type="button" onClick={() => openCamera()}>
                     <UiIcon name="camera" size={17} /> Snap more
                   </button>
-                  <button type="button" onClick={() => photoInput.current.click()} disabled={sending}>
+                  <button type="button" onClick={() => photoInput.current.click()}>
                     <UiIcon name="image" size={17} /> Add photos
                   </button>
                 </li>
@@ -776,29 +1029,63 @@ export default function Upload({ variant = 'student' }) {
         )}
       </section>
 
+      {/* Not signed in: say who is sending this, or stay mysterious */}
+      {!signedIn && (
+        <section className="up-card">
+          <CardHead
+            tone="peach"
+            icon="user"
+            title="Who is sending this?"
+            sub="Add your name so it's credited to you, or stay mysterious. You can send it either way."
+          />
+
+          <div className="up-field" ref={whoField}>
+            <span className="up-label">Your name</span>
+            <div className="up-who">
+              <div className={`up-combo up-who-name${hint === 'who' && needsWho && !sender.mysterious ? ' invalid' : ''}`}>
+                <div className="up-combo-field">
+                  <UiIcon name="user" size={18} />
+                  <input
+                    ref={whoInput}
+                    type="text"
+                    value={sender.name}
+                    maxLength={30}
+                    placeholder={sender.mysterious ? 'Staying mysterious' : 'e.g. John Doe'}
+                    autoComplete="nickname"
+                    disabled={sender.mysterious}
+                    aria-label="Your name"
+                    onChange={e => changeSender({ name: e.target.value, mysterious: false })}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className={`up-year${sender.mysterious ? ' on' : ''}`}
+                aria-pressed={sender.mysterious}
+                onClick={() => changeSender({ name: '', mysterious: !sender.mysterious })}
+              >
+                {sender.mysterious && <UiIcon name="check" size={14} />}
+                Stay mysterious
+              </button>
+            </div>
+
+            {senderName && senderProblem && <Hint>{senderProblem}</Hint>}
+            {hint === 'who' && needsWho && !senderProblem && <Hint>{HINTS.who}</Hint>}
+          </div>
+        </section>
+      )}
+
       <div className="up-submit">
-        {error && <p className="up-error" role="alert"><UiIcon name="alert" size={16} /> {error}</p>}
         <button
           type="button"
-          className={`up-send${missing ? '' : ' ready'}${sending ? ' sending' : ''}`}
+          className={`up-send${missing ? '' : ' ready'}`}
           onClick={submit}
-          disabled={sending}
         >
-          {sending ? (
-            <>
-              <span className="up-send-fill" style={{ width: `${ratio * 100}%` }} />
-              <span className="up-send-label">
-                <UiIcon name="loader" size={18} spin /> {sendingMessage(ratio)}
-              </span>
-            </>
-          ) : (
-            <span className="up-send-label">
-           
-              {error ? 'Try again' : owner ? 'Publish' : 'Submit for review'}
-              {countLabel && <em>{countLabel}</em>}
-              
-            </span>
-          )}
+          <span className="up-send-label">
+            {owner ? 'Publish' : 'Submit for review'}
+            {countLabel && <em>{countLabel}</em>}
+          </span>
         </button>
       </div>
 

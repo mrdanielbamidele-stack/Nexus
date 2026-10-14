@@ -229,17 +229,26 @@ export default function DeleOverview() {
   const [updatedAt, setUpdatedAt] = useState(null)
   const [health, setHealth] = useState(null)
   const [error, setError] = useState('')
+  // True while numbers are being fetched again with the page already showing.
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     setError('')
-    call(`/overview?days=${days}`)
-      .then(result => {
+    setRefreshing(true)
+
+    // A local answer comes back in a blink; hold the spinner just long enough
+    // that a tap on Refresh is seen to do something.
+    const minimum = new Promise(resolve => setTimeout(resolve, 700))
+
+    Promise.all([call(`/overview?days=${days}`), minimum])
+      .then(([result]) => {
         if (cancelled) return
         setData(result)
         setUpdatedAt(new Date())
       })
       .catch(err => { if (!cancelled) setError(err.message) })
+      .finally(() => { if (!cancelled) setRefreshing(false) })
     return () => { cancelled = true }
   }, [call, days, version])
 
@@ -254,7 +263,20 @@ export default function DeleOverview() {
     return () => clearInterval(id)
   }, [])
 
-  if (error) return <p className="dl-error" role="alert">{error}</p>
+  const retry = () => setVersion(v => v + 1)
+
+  // Nothing to show yet and the first load failed: say so, and offer another go.
+  if (error && !data) {
+    return (
+      <div className="dl-ov">
+        <p className="dl-error" role="alert">{error}</p>
+        <button type="button" className="dl-btn ghost dl-refresh" onClick={retry} disabled={refreshing}>
+          <UiIcon name="rotate" size={16} spin={refreshing} />
+          {refreshing ? 'Trying again…' : 'Try again'}
+        </button>
+      </div>
+    )
+  }
   if (!data) return <DeleOverviewSkeleton />
 
   const { users, papers, activity, series } = data
@@ -271,14 +293,30 @@ export default function DeleOverview() {
         </div>
         <div className="dl-ov-tools">
           {updatedAt && (
-            <span className="dl-ov-updated" title={updatedAt.toLocaleString()}>
-              Last updated {timeAgo(updatedAt)}
+            <span className="dl-ov-updated" title={updatedAt.toLocaleString()} aria-live="polite">
+              {refreshing ? 'Updating…' : `Last updated ${timeAgo(updatedAt)}`}
             </span>
           )}
           <DeleSelect label="Period" value={days} options={DAY_OPTIONS} onChange={setDays} />
-          <button type="button" className="dl-btn ghost" onClick={() => setVersion(v => v + 1)}>Refresh</button>
+          <button
+            type="button"
+            className={`dl-btn ghost dl-refresh${refreshing ? ' is-busy' : ''}`}
+            onClick={() => setVersion(v => v + 1)}
+            disabled={refreshing}
+            aria-busy={refreshing}
+          >
+            <UiIcon name="rotate" size={16} spin={refreshing} />
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
         </div>
       </div>
+
+      {/* A refresh that failed leaves the numbers on screen and says why. */}
+      {error && (
+        <p className="dl-error" role="alert">
+          {error} The numbers below are from {updatedAt ? timeAgo(updatedAt) : 'earlier'}. Tap Refresh to try again.
+        </p>
+      )}
 
       {missing.length > 0 && (
         <div className="dl-notice" role="status">

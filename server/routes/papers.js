@@ -14,6 +14,7 @@ import {
   DOC_EXTENSIONS, IMAGE_EXTENSIONS, MAX_FILES, extOf, signUploads,
 } from '../lib/cloudinary.js'
 import { nextVersion, parseSubmission } from '../lib/papers.js'
+import { usernameProblem } from '../../src/lib/schoolEmail.js'
 
 const router = Router()
 
@@ -82,6 +83,16 @@ router.post('/', wrap(async (req, res) => {
   const fields = parseSubmission(req.body)
   const found = await whoIsThis(req, req.body?.as === 'admin' ? 'admin' : 'student')
 
+  // Someone who isn't signed in may say who they are, or stay mysterious (no
+  // name). Signed-in people are always credited under their own account.
+  let guestName = null
+  const said = String(req.body?.uploaderName ?? '').trim()
+  if (!found && said) {
+    const problem = usernameProblem(said)
+    if (problem) throw fail(400, 'BAD_USERNAME', problem)
+    guestName = said
+  }
+
   const paper = await Paper.create({
     ...fields,
     version: await nextVersion(fields.courseKey, fields.session),
@@ -89,7 +100,7 @@ router.post('/', wrap(async (req, res) => {
     source: found ? found.user.role : 'student',
     uploaderId: found?.user._id || null,
     uploaderRole: found?.user.role || null,
-    uploaderName: found?.user.username || null,
+    uploaderName: found?.user.username || guestName,
     uploaderEmail: found?.user.email || null,
   })
 

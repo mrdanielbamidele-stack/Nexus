@@ -92,6 +92,15 @@ router.use(needDele)
 
 const whoKey = { $ifNull: [{ $toString: '$userId' }, { $concat: ['anon:', { $ifNull: ['$anonId', '?'] }] }] }
 
+// Someone with no account in the numbers is a person at a sign-in screen or on
+// the open /upload page (a guest who gave a name is shown by that name instead):
+// say what they were doing rather than leaving it blank.
+const strangerLabel = path => (
+  path === '/admin' ? 'Admin signing in'
+    : path === '/auth' ? 'Student signing in'
+      : 'Uploader'
+)
+
 router.get('/overview', wrap(async (req, res) => {
   const days = Math.min(90, Math.max(1, Number(req.query.days) || 14))
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
@@ -172,10 +181,11 @@ router.get('/overview', wrap(async (req, res) => {
     ]),
     Event.aggregate([
       { $match: { ...inWindow, type: 'active' } },
+      { $sort: { at: 1 } }, // so $last below is the most recent page
       {
         $group: {
           _id: whoKey, seconds: { $sum: '$seconds' }, name: { $last: '$name' }, email: { $last: '$email' },
-          role: { $last: '$role' }, last: { $max: '$at' },
+          role: { $last: '$role' }, path: { $last: '$path' }, last: { $max: '$at' },
         },
       },
       { $sort: { seconds: -1 } },
@@ -229,19 +239,19 @@ router.get('/overview', wrap(async (req, res) => {
     },
     series,
     topDownloaders: topDownloaders.map(d => ({
-      who: d.name || d.email || 'Not logged in', email: d.email || null, role: d.role || null,
+      who: d.name || d.email || strangerLabel(), email: d.email || null, role: d.role || null,
       downloads: d.downloads, last: d.last,
     })),
     topPapers: topPapersRaw.map(p => ({
       id: String(p._id), title: p.title || 'Deleted paper', downloads: p.downloads, opens: p.opens, seconds: p.seconds,
     })),
     viewers: viewers.map(v => ({
-      who: v.name || v.email || 'Not logged in', email: v.email || null, role: v.role || null,
+      who: v.name || v.email || strangerLabel(), email: v.email || null, role: v.role || null,
       title: v.title || 'Deleted paper', seconds: v.seconds, last: v.last,
     })),
     links: links.map(l => ({ label: l._id.label || 'Link', url: l._id.url || '', clicks: l.clicks, last: l.last })),
     usage: usage.map(u => ({
-      who: u.name || u.email || 'Not logged in', email: u.email || null, role: u.role || null,
+      who: u.name || u.email || strangerLabel(u.path), email: u.email || null, role: u.role || null,
       seconds: u.seconds, last: u.last,
     })),
   })

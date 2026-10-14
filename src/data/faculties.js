@@ -32,7 +32,7 @@ export const FACULTIES = [
     ],
   },
   {
-    name: 'Health & Medical Sciences',
+    name: 'Medical Sciences',
     departments: ['Medical Laboratory Science', 'Public Health', 'Nursing Science', 'Medicine & Surgery' , 'Biochemistry',  'Physics with Electronics', 'Mathematics'],
   },
   {

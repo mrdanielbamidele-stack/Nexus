@@ -239,7 +239,7 @@ describe('one person, two separate accounts (student and admin)', () => {
     const bad = await a.call('PUT', '/api/admin/department', { department: 'Made Up Department' })
     assert.equal(bad.status, 400)
     const set = await a.call('PUT', '/api/admin/department', { department: 'Software Engineering' })
-    assert.equal(set.json.me.faculty, 'Computing & Information Sciences')
+    assert.equal(set.json.me.faculty, 'Computing & Applied Sciences')
     assert.equal(set.json.me.needsDepartment, false)
 
     // Admin and student sessions are separate cookies of the same browser.
@@ -344,8 +344,22 @@ describe('the owner area (/delealone)', () => {
 
     const list = (await owner.call('GET', '/api/dele/papers?status=pending')).json.papers
     const mine = list.find(p => p.id === sent.json.id)
-    assert.equal(mine.uploader.label, 'Not logged in')
+    assert.equal(mine.uploader.label, 'Uploader') // stayed mysterious: no name given
     assert.equal(mine.title, 'PHY 101 2023/2024') // not public yet, so no version
+
+    // A guest who gives a name is credited as "Name (Uploader)"; a bad name is refused.
+    const named = await guest.call('POST', '/api/papers', {
+      courseCode: 'PHY 101', session: '2022/2023', uploaderName: 'John Doe', files: [fileFor(2)],
+    })
+    assert.equal(named.status, 201)
+    const namedRow = (await owner.call('GET', '/api/dele/papers?status=pending')).json.papers.find(p => p.id === named.json.id)
+    assert.equal(namedRow.uploader.label, 'John Doe (Uploader)')
+    assert.equal(namedRow.uploader.signedIn, false)
+
+    const tooShort = await guest.call('POST', '/api/papers', {
+      courseCode: 'PHY 101', session: '2022/2023', uploaderName: 'J', files: [fileFor(3)],
+    })
+    assert.equal(tooShort.json.error.code, 'BAD_USERNAME')
 
     const approved = await owner.call('PATCH', `/api/dele/papers/${sent.json.id}`, { status: 'approved' })
     assert.equal(approved.json.paper.status, 'approved')
@@ -469,6 +483,49 @@ describe('the owner area (/delealone)', () => {
     assert.equal(overview.topDownloaders[0].email, STUDENT)
     assert.equal(overview.viewers[0].title, 'PHY 101 2023/2024 v2')
     assert.ok(overview.users.students >= 1)
+  })
+
+  it('names signed-out visitors by what they are doing, and drops stray events', async () => {
+    const visitor = browser()
+    const usageNames = async () =>
+      (await owner.call('GET', '/api/dele/overview?days=7')).json.usage.map(u => u.who)
+
+    // The sign-in screens are recorded and named.
+    await visitor.call('POST', '/api/events', { anonId: 'signin-student', events: [{ type: 'active', seconds: 15, path: '/auth' }] })
+    await visitor.call('POST', '/api/events', { anonId: 'signin-staff', events: [{ type: 'active', seconds: 15, path: '/admin' }] })
+
+    // Leftovers with no session, from anywhere else, are not recorded at all.
+    await visitor.call('POST', '/api/events', {
+      anonId: 'stray',
+      events: [
+        { type: 'read', seconds: 1 },
+        { type: 'active', seconds: 15, path: '/' },
+        { type: 'link', label: 'Lynklens', url: 'https://lynklens.com' },
+      ],
+    })
+
+    const names = await usageNames()
+    assert.ok(names.includes('Student signing in'))
+    assert.ok(names.includes('Admin signing in'))
+    assert.ok(!names.includes('Uploader'))
+    assert.ok(!names.some(name => /not logged in|not signed in/i.test(name)))
+
+    // The open upload page is the one place a stranger legitimately uses Nexus:
+    // "Uploader" if they stay mysterious, "Name (Uploader)" if they gave a name.
+    await visitor.call('POST', '/api/events', { anonId: 'uploader-mystery', events: [{ type: 'active', seconds: 15, path: '/upload' }] })
+    await visitor.call('POST', '/api/events', {
+      anonId: 'uploader-named', uploaderName: 'Jane Doe', events: [{ type: 'active', seconds: 15, path: '/upload' }],
+    })
+    // A name sent from any other page is ignored.
+    await visitor.call('POST', '/api/events', {
+      anonId: 'signin-named', uploaderName: 'Sneaky', events: [{ type: 'active', seconds: 15, path: '/auth' }],
+    })
+
+    const usage = (await owner.call('GET', '/api/dele/overview?days=7')).json.usage
+    const jane = usage.find(u => u.who === 'Jane Doe')
+    assert.equal(jane.role, 'uploader')
+    assert.ok(usage.some(u => u.who === 'Uploader' && u.role === null))
+    assert.ok(!usage.some(u => u.who === 'Sneaky'))
   })
 
   it('can log in as a user for a limited, recorded session', async () => {
@@ -680,7 +737,7 @@ describe('owner-made staff accounts', () => {
 
     const row = await User.findOne({ email: body.email, role: 'admin' })
     assert.equal(row.createdByOwner, true)
-    assert.equal(row.faculty, 'Computing & Information Sciences')
+    assert.equal(row.faculty, 'Computing & Applied Sciences')
 
     const staff = browser()
     const login = await staff.call('POST', '/api/auth/login', { role: 'admin', email: body.email, password: body.password })

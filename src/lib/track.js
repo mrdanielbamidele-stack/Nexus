@@ -4,6 +4,7 @@
 // tracking must never get in the way of studying.
 
 import { isDemo } from './demo'
+import { uploaderName } from './uploader'
 
 const ANON_KEY = 'nexus_anon'
 const FLUSH_MS = 20000
@@ -34,7 +35,9 @@ function send(useBeacon) {
   if (!queue.length) return
 
   const events = queue.splice(0, MAX_BATCH)
-  const body = JSON.stringify({ events, anonId: anonId(), as: area() })
+  // The name a signed-out visitor gave on /upload (the server only uses it for
+  // them, and only for events from that page).
+  const body = JSON.stringify({ events, anonId: anonId(), as: area(), uploaderName: uploaderName() })
 
   try {
     if (useBeacon && navigator.sendBeacon) {

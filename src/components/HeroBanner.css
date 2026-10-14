@@ -86,9 +86,24 @@
   50%      { transform: translateY(-6px); }
 }
 
+/* Small screens keep the banner a horizontal rectangle: the words on the left,
+   the artwork always beside them, both scaling down together. */
 @media (max-width: 760px) {
-  .hb-banner { grid-template-columns: 1fr; padding: 24px 22px; min-height: 0; }
-  .hb-art { width: 220px; }
+  .hb-banner {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 8px;
+    min-height: 0;
+    padding: 18px 16px;
+    border-radius: 20px;
+  }
+  .hb-copy h2 { margin-bottom: 8px; font-size: clamp(18px, 5vw, 26px); }
+  .hb-copy p { font-size: 12px; line-height: 1.6; }
+  .hb-art { width: 100%; max-width: 220px; }
+}
+@media (max-width: 420px) {
+  .hb-banner { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); padding: 16px 14px; }
+  .hb-copy h2 { font-size: 17px; }
+  .hb-copy p { font-size: 11.5px; line-height: 1.55; }
 }
 
 @media (prefers-reduced-motion: reduce) {
