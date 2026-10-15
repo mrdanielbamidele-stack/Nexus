@@ -15,7 +15,7 @@
   --dl-bad: #b91c1c;
 }
 
-.dl-app .main { max-width: 1240px; }
+.dl-app .main { max-width: 1240px; min-width: 0; }
 
 /* Sign out, at the foot of the sidebar. App.css gives every bare button a full
    width and a violet fill, so this one sets its own. It looks like the nav rows
@@ -321,7 +321,8 @@
 .dl-ov-eyebrow { margin: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #7c5cc4; }
 .dl-ov-title h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.025em; }
 .dl-ov-sub { margin: 6px 0 0; font-size: 14px; color: var(--dl-muted); }
-.dl-ov-tools { display: flex; align-items: center; gap: 10px; }
+.dl-ov-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; max-width: 100%; }
+.dl-ov-title > * { min-width: 0; }
 
 .dl-ov .dl-ov-hero { min-height: 190px; margin: 0 0 20px; padding: 22px 34px; }
 .dl-ov .dl-ov-hero .hb-art { width: min(100%, 240px); }
@@ -432,6 +433,14 @@
   .dl-ov-columns.even { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 560px) {
+  /* Header tools: "Last updated" on its own line, then the period and Refresh share the width */
+  .dl-ov-title { align-items: stretch; }
+  .dl-ov-tools { width: 100%; }
+  .dl-ov-updated { flex: 1 0 100%; }
+  .dl-ov-tools .dl-select { flex: 1 1 0; min-width: 0; }
+  .dl-ov-tools .dl-select-button { width: 100%; min-width: 0; }
+  .dl-ov-tools .dl-refresh { flex: 1 1 0; min-width: 0; }
+
   .dl-ov-metric { padding: 16px; border-radius: 16px; }
   .dl-ov-metric b { font-size: 22px; }
   .dl-ov-panel { padding: 18px; border-radius: 16px; }
@@ -749,3 +758,41 @@
 .dl-paper-version { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -2px 0 12px; font-size: 12.5px; color: var(--dl-muted); }
 .dl-paper-version .dl-select-button { min-width: 0; padding: 6px 10px 6px 12px; font-size: 13px; }
 .dl-paper-version .dl-select-list { right: auto; left: 0; }
+
+/* End of a course + year in Compare: add another paper for that year */
+.dl-cmp-slot { grid-column: 1 / -1; }
+.dl-cmp-slot-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1.5px dashed #cdbff0;
+  border-radius: 12px;
+  background: #faf8ff;
+  color: #6d4fc2;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.dl-cmp-slot-toggle:hover { background: #f1ecfc; border-color: #a78bfa; }
+.dl-cmp-slot.open .dl-cmp-slot-toggle { border-style: solid; background: #f1ecfc; }
+.dl-cmp-slot-body { margin-top: 12px; }
+.dl-cmp-slot-body[hidden] { display: none; }
+
+/* A course with no papers yet: pick a year, then upload for it */
+.dl-cmp-empty { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.dl-cmp-empty .dl-empty { margin: 0; padding: 0; text-align: left; }
+.dl-cmp-empty .dl-cmp-slot { width: 100%; }
+
+/* "Load 50 more" under a long list (Compare, Papers) */
+.dl-cmp-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 28px;
+  font-size: 13px;
+  color: var(--dl-muted);
+}

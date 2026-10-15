@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import HeroBanner from '../../components/HeroBanner'
 import ScrollToTop from '../../components/ScrollToTop'
 import { courseCatalog } from '../../data/courseCatalog'
+import { betaCatalog } from '../../data/betaCatalog'
 import { coursesOfDepartment } from '../../data/faculties'
 import { CourseCardPending } from '../../components/Skeleton'
 import { pqKey, getAvailableYears, usePapers, usePapersReady } from '../../lib/pastQuestions'
@@ -21,14 +22,63 @@ export default function AdminDashboard() {
     () => coursesOfDepartment(courseCatalog, admin.department),
     [admin.department]
   )
+  // Last semester's (Beta) courses of the same department - the ones students reseat.
+  const betaCourses = useMemo(
+    () => coursesOfDepartment(betaCatalog, admin.department),
+    [admin.department]
+  )
 
   const term = query.trim().toLowerCase()
-  const shown = term
-    ? courses.filter(c => c.code.toLowerCase().includes(term) || c.title.toLowerCase().includes(term))
-    : courses
+  const matching = list => (term
+    ? list.filter(c => c.code.toLowerCase().includes(term) || c.title.toLowerCase().includes(term))
+    : list)
+  const shown = matching(courses)
+  const shownBeta = matching(betaCourses)
 
-  // Group by level, in teaching order.
-  const levels = [...new Set(shown.map(c => c.level))]
+  // One heading per level, in teaching order, each with its course cards.
+  function renderLevels(list) {
+    const levels = [...new Set(list.map(c => c.level))]
+    return levels.map(level => (
+      <div key={level}>
+        <h2>{/^\d+$/.test(level) ? `${level} level` : level}</h2>
+        <div className="cards">
+          {list.filter(c => c.level === level).map(course => {
+            const years = getAvailableYears(course.code).length
+            if (!ready) {
+              // The course itself is known; what's available isn't yet.
+              return (
+                <div className="card" key={course.code}>
+                  <strong>{course.code}</strong>
+                  <div className="course-title">{course.title}</div>
+                  <CourseCardPending />
+                </div>
+              )
+            }
+            return (
+              <div className="card" key={course.code}>
+                <strong>{course.code}</strong>
+                <div className="course-title">{course.title}</div>
+                <p className="muted" style={{ marginTop: -10, marginBottom: 6 }}>
+                  {years > 0 ? `${years} year${years === 1 ? '' : 's'} available` : 'No years available yet'}
+                </p>
+                <Link
+                  to={`/admin/pastquestions/${pqKey(course.code)}`}
+                  style={{ textDecoration: 'none', color: 'inherit', pointerEvents: years === 0 ? 'none' : 'auto' }}
+                >
+                  <button
+                    disabled={years === 0}
+                    style={{ opacity: years === 0 ? 0.5 : 1, cursor: years === 0 ? 'not-allowed' : 'pointer' }}
+                  >
+                    Browse Past Questions
+                  </button>
+                </Link>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    ))
+  }
 
   return (
     <div>
@@ -56,48 +106,20 @@ export default function AdminDashboard() {
           />
         </div>
 
-        {levels.length === 0 && <p className="muted">No courses match your search.</p>}
+        {shown.length === 0 && shownBeta.length === 0 && <p className="muted">No courses match your search.</p>}
 
-        {levels.map(level => (
-          <div key={level}>
-            <h2>{/^\d+$/.test(level) ? `${level} level` : level}</h2>
-            <div className="cards">
-              {shown.filter(c => c.level === level).map(course => {
-                const years = getAvailableYears(course.code).length
-                if (!ready) {
-                  // The course itself is known; what's available isn't yet.
-                  return (
-                    <div className="card" key={course.code}>
-                      <strong>{course.code}</strong>
-                      <div className="course-title">{course.title}</div>
-                      <CourseCardPending />
-                    </div>
-                  )
-                }
-                return (
-                  <div className="card" key={course.code}>
-                    <strong>{course.code}</strong>
-                    <div className="course-title">{course.title}</div>
-                    <p className="muted" style={{ marginTop: -10, marginBottom: 6 }}>
-                      {years > 0 ? `${years} year${years === 1 ? '' : 's'} available` : 'No years available yet'}
-                    </p>
-                    <Link
-                      to={`/admin/pastquestions/${pqKey(course.code)}`}
-                      style={{ textDecoration: 'none', color: 'inherit', pointerEvents: years === 0 ? 'none' : 'auto' }}
-                    >
-                      <button
-                        disabled={years === 0}
-                        style={{ opacity: years === 0 ? 0.5 : 1, cursor: years === 0 ? 'not-allowed' : 'pointer' }}
-                      >
-                        Browse Past Questions
-                      </button>
-                    </Link>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        ))}
+        {renderLevels(shown)}
+
+        {/* Last semester's courses - the ones students sit again as reseats */}
+        {shownBeta.length > 0 && (
+          <>
+            <h2 style={{ marginTop: 40 }}>Beta semester courses</h2>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Last semester's courses of {admin.department}, which students may be sitting again.
+            </p>
+            {renderLevels(shownBeta)}
+          </>
+        )}
       </section>
     </div>
   )

@@ -12,7 +12,9 @@ import {
   COOKIE, SHORT_SECONDS, clearCookie, needUser, readCookie, renewCookie, sessionUser, setCookie,
 } from '../lib/session.js'
 import { adminShape, eraseAccount, studentShape } from '../lib/accounts.js'
-import { baseCourseCodes, hasCourse, levelsOfProgramme, programmes } from '../lib/courses.js'
+import {
+  baseCourseCodes, findReseatCourse, hasCourse, levelsOfProgramme, programmes,
+} from '../lib/courses.js'
 import { checkSchoolEmail, emailProblem, passwordProblem, roleProblem, usernameProblem } from '../../src/lib/schoolEmail.js'
 import { FACULTIES, facultyOf } from '../../src/data/faculties.js'
 
@@ -182,6 +184,29 @@ studentRouter.put('/courses', needUser('student'), wrap(async (req, res) => {
   }
 
   req.user.courses = courses
+  await req.user.save()
+  res.json({ me: studentShape(req.user) })
+}))
+
+// Last semester's (Beta) courses the student is sitting again. Only courses
+// from the Beta catalogue are accepted, and they are stored with the
+// catalogue's own spelling of the code.
+studentRouter.put('/reseat-courses', needUser('student'), wrap(async (req, res) => {
+  const list = req.body?.courses
+  if (!Array.isArray(list) || list.length > 80) {
+    throw fail(400, 'BAD_COURSES', "We couldn't read that course list. Refresh the page and try again.")
+  }
+
+  const seen = new Set()
+  const courses = []
+  for (const code of list) {
+    const found = typeof code === 'string' ? findReseatCourse(code) : null
+    if (!found || seen.has(found.code)) continue
+    seen.add(found.code)
+    courses.push(found.code)
+  }
+
+  req.user.reseatCourses = courses
   await req.user.save()
   res.json({ me: studentShape(req.user) })
 }))

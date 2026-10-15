@@ -35,7 +35,7 @@
 }
 
 /* The same quiet lavender wash Settings and the past-questions pages use. */
-.main:has(.up-page),
+.main:has(.up-page:not(.is-embedded)),
 .up-public {
   background: linear-gradient(180deg, #ffffff 0%, #f3f1fb 100%);
 }
@@ -222,14 +222,19 @@
 .up-combo-clear {
   display: grid;
   place-items: center;
+  flex: none;
   width: 28px;
   height: 28px;
+  padding: 0;
+  border: 0;
   border-radius: 8px;
+  /* A bare <button> is purple and full-width site-wide (App.css) - undo that here. */
+  background: transparent;
   color: #a39ebb;
   cursor: pointer;
 }
 
-.up-combo-clear:hover { background: #f5f2fd; color: #7a62c4; }
+.up-combo-clear:hover { background: #f5f2fd; color: #7a62c4; opacity: 1; }
 
 .up-combo-list {
   position: absolute;
@@ -1023,4 +1028,42 @@
   .up-page, .up-card, .up-doc, .up-tile, .up-hint, .up-combo-list, .up-drop-icon,
   .up-done-icon, .up-year.on, .up-actions.nudge { animation: none; }
   .up-confetti { display: none; }
+}
+
+/* ── Small version (inside a Compare course) ───────────────────────────── */
+/* Same page, same behaviour - just smaller, so it sits at the end of a year. */
+.up-page.is-embedded {
+  max-width: none;
+  margin: 0;
+  padding-bottom: 0;
+  animation: none;
+}
+
+.is-embedded .up-card { margin-bottom: 12px; padding: 16px; border-radius: 16px; box-shadow: none; animation: none; }
+.is-embedded .up-card-head { gap: 12px; margin-bottom: 14px; }
+.is-embedded .up-chip { width: 38px; height: 38px; border-radius: 12px; }
+.is-embedded .up-chip.small { width: 34px; height: 34px; border-radius: 11px; }
+.is-embedded .up-card-title { font-size: 15px; }
+.is-embedded .up-card-sub { font-size: 12px; }
+
+.is-embedded .up-saveas { margin: 0 0 12px; padding: 9px 12px; border-radius: 12px; font-size: 12px; }
+.is-embedded .up-saveas strong { font-size: 13px; }
+.is-embedded .up-jobs { margin-bottom: 12px; }
+
+.is-embedded .up-drop { padding: 18px 12px; border-radius: 14px; }
+.is-embedded .up-drop strong { font-size: 13.5px; }
+.is-embedded .up-drop-icon { margin-bottom: 4px; }
+.is-embedded .up-actions { gap: 8px; margin-top: 10px; }
+.is-embedded .up-action { gap: 10px; padding: 10px; border-radius: 13px; }
+.is-embedded .up-action-text strong { font-size: 12.5px; }
+.is-embedded .up-action-text span { font-size: 11px; }
+.is-embedded .up-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+
+/* Not pinned to the screen's bottom: it belongs to this card. */
+.is-embedded .up-submit { position: static; margin-top: 0; }
+.is-embedded .up-send { padding: 10px 18px; font-size: 13px; }
+
+@media (max-width: 600px) {
+  .is-embedded .up-actions { grid-template-columns: 1fr; }
+  .is-embedded .up-card { padding: 14px; }
 }

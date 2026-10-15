@@ -17,7 +17,7 @@ import { useSyncExternalStore, useCallback } from "react";
 import { api } from "./api";
 import { isDemo } from "./demo";
 import { normalizeCode } from "./courseSlug";
-import { getEffectiveCourses } from "./studentCourses";
+import { getFollowedCourses } from "./studentCourses";
 
 const SEEN_KEY = "nexus_notifs_seen_at"; // ISO timestamp the panel was last opened
 const DISMISS_KEY = "nexus_notifs_dismissed"; // ids the user deleted on this device
@@ -31,9 +31,9 @@ let _started = false;
 
 /* ------------------------------- course set ------------------------------- */
 
-// Normalized set of the codes the student is currently taking.
+// Normalized set of the codes the student is currently taking (reseats included).
 function takenCodeSet() {
-  return new Set(getEffectiveCourses().map((c) => normalizeCode(c.code)));
+  return new Set(getFollowedCourses().map((c) => normalizeCode(c.code)));
 }
 
 /* --------------------------------- loading -------------------------------- */

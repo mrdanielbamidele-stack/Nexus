@@ -6,9 +6,13 @@ import { signOut } from "../lib/session";
 import { applyServerStudent, getStudent, setStudent } from "../lib/studentAuth";
 import {
   addCourse,
-  getAllCatalogCourses,
+  addReseatCourse,
+  getBetaCatalogCourses,
+  getPrimoCatalogCourses,
   removeCourse,
+  removeReseatCourse,
   useEffectiveCourses,
+  useReseatCourses,
 } from "../lib/studentCourses";
 import { courseCatalog } from "../data/courseCatalog";
 import AccountSecurity from "../components/AccountSecurity";
@@ -254,7 +258,8 @@ function StudySection({ student }) {
 
 // "Add course" opens a panel with the same search box as the upload page:
 // type a code or title, the best match is highlighted, and Enter adds it.
-function AddCoursePanel({ taken, onClose }) {
+// `reseat` picks from last semester's (Beta) courses instead of this semester's.
+function AddCoursePanel({ taken, onClose, reseat = false }) {
   const [error, setError] = useState("");
   const [justAdded, setJustAdded] = useState("");
   // Bumping this empties the search box, ready for the next course.
@@ -262,8 +267,11 @@ function AddCoursePanel({ taken, onClose }) {
   const input = useRef(null);
 
   const options = useMemo(
-    () => getAllCatalogCourses().filter((c) => !taken.has(c.code)),
-    [taken]
+    () =>
+      (reseat ? getBetaCatalogCourses() : getPrimoCatalogCourses()).filter(
+        (c) => !taken.has(c.code)
+      ),
+    [taken, reseat]
   );
 
   useEffect(() => {
@@ -275,8 +283,8 @@ function AddCoursePanel({ taken, onClose }) {
     setError("");
     setJustAdded("");
     try {
-      await addCourse(code);
-      setJustAdded(`${code} added to your courses.`);
+      await (reseat ? addReseatCourse : addCourse)(code);
+      setJustAdded(`${code} added to your ${reseat ? "reseat courses" : "courses"}.`);
     } catch (err) {
       setError(err.message);
     }
@@ -286,7 +294,7 @@ function AddCoursePanel({ taken, onClose }) {
   return (
     <div className="set-picker">
       <div className="set-picker-head">
-        <h3 className="set-picker-title">Add a course</h3>
+        <h3 className="set-picker-title">{reseat ? "Add a reseat course" : "Add a course"}</h3>
         <button type="button" className="set-btn-ghost set-btn-sm" onClick={onClose}>Done</button>
       </div>
 
@@ -305,8 +313,13 @@ function AddCoursePanel({ taken, onClose }) {
   );
 }
 
-function CoursesSection() {
-  const courses = useEffectiveCourses();
+// "Your courses" (this semester) and "Reseat courses" (last semester's, being
+// sat again) are the same screen over two lists.
+function CoursesSection({ reseat = false }) {
+  const current = useEffectiveCourses();
+  const reseating = useReseatCourses();
+  const courses = reseat ? reseating : current;
+  const remove = reseat ? removeReseatCourse : removeCourse;
   const [adding, setAdding] = useState(false);
   const [confirming, setConfirming] = useState(null); // code pending removal
   const [error, setError] = useState("");
@@ -317,7 +330,7 @@ function CoursesSection() {
     setError("");
     setConfirming(null);
     try {
-      await removeCourse(code);
+      await remove(code);
     } catch (err) {
       setError(err.message);
     }
@@ -325,17 +338,17 @@ function CoursesSection() {
 
   return (
     <SetSection
-      title="Your courses"
+      title={reseat ? "Your reseat courses" : "Your courses"}
       sub={`${courses.length} course${courses.length === 1 ? "" : "s"}`}
       actions={!adding && (
         <button type="button" className="set-btn-primary" onClick={() => setAdding(true)}>
-          <UiIcon name="plus" size={15} /> Add course
+          <UiIcon name="plus" size={15} /> {reseat ? "Add reseat course" : "Add course"}
         </button>
       )}
     >
       {adding && (
         <div className="set-body">
-          <AddCoursePanel taken={taken} onClose={() => setAdding(false)} />
+          <AddCoursePanel taken={taken} reseat={reseat} onClose={() => setAdding(false)} />
         </div>
       )}
 
@@ -346,7 +359,14 @@ function CoursesSection() {
       {courses.length === 0 && (
         <div className="set-body">
           <p className="set-row-desc" style={{ margin: 0 }}>
-            You have no courses yet. Tap <strong>Add course</strong> to pick the ones you take.
+            {reseat ? (
+              <>
+                You have no reseat courses. Tap <strong>Add reseat course</strong> to pick the courses
+                from last semester you are sitting again.
+              </>
+            ) : (
+              <>You have no courses yet. Tap <strong>Add course</strong> to pick the ones you take.</>
+            )}
           </p>
         </div>
       )}
@@ -391,6 +411,7 @@ export default function Settings() {
   const navigate = useNavigate();
   const student = getStudent();
   const courses = useEffectiveCourses();
+  const reseatCourses = useReseatCourses();
 
   const username = localStorage.getItem("username") || student?.username || "Guest";
   const regNumber = localStorage.getItem("regNumber") || student?.regNumber || "-";
@@ -429,6 +450,16 @@ export default function Settings() {
       sponsor: "Every course, every past paper, in your palm - brought to you by Lynklens.",
     },
     {
+      id: "reseat",
+      title: "Reseat Courses",
+      icon: "undo",
+      tone: "blue",
+      desc: "Sitting a course from last semester again? Add it here to see it on your dashboard.",
+      meta: `${reseatCourses.length} course${reseatCourses.length === 1 ? "" : "s"}`,
+      lead: "Courses from last semester that you are sitting again.",
+      sponsor: "Every past paper for your reseats, in one place - thanks to Lynklens.",
+    },
+    {
       id: "notifications",
       title: "Notifications",
       icon: "bell",
@@ -453,6 +484,7 @@ export default function Settings() {
   function renderSection(section) {
     if (section.id === "profile") return <ProfileSection student={student} />;
     if (section.id === "courses") return <CoursesSection />;
+    if (section.id === "reseat") return <CoursesSection reseat />;
     if (section.id === "notifications") return <NotificationsCard />;
     return (
       <AccountSecurity

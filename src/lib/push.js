@@ -18,7 +18,7 @@
 
 import { api } from "./api";
 import { normalizeCode } from "./courseSlug";
-import { getEffectiveCourses } from "./studentCourses";
+import { getFollowedCourses } from "./studentCourses";
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
 const COURSES_EVENT = "nexus:courses-changed";
@@ -111,7 +111,7 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 function takenCodes() {
-  return getEffectiveCourses().map((c) => normalizeCode(c.code));
+  return getFollowedCourses().map((c) => normalizeCode(c.code));
 }
 
 async function getRegistration() {

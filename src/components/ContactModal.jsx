@@ -101,7 +101,7 @@ export default function ContactModal({ onClose }) {
             <span className="cm-row-icon tone-wa"><WhatsAppLogo size={25} /></span>
             <span className="cm-row-text">
               <small>WhatsApp · {WHATSAPP_DISPLAY}</small>
-              <b>Message us directly</b>
+              <b> Message us directly</b>
             </span>
             <UiIcon name="arrow" size={18} className="cm-arrow" />
           </a>

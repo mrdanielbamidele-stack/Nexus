@@ -264,8 +264,20 @@ router.get('/papers', wrap(async (req, res) => {
   if (['pending', 'approved', 'rejected'].includes(req.query.status)) filter.status = req.query.status
   if (req.query.course) filter.courseKey = pqKey(String(req.query.course))
 
-  const papers = await Paper.find(filter).sort({ createdAt: -1 }).limit(300)
-  res.json({ papers: await describePapers(papers) })
+  // `?limit=50&offset=0` pages through the list (the page loads 50 at a time);
+  // without it, behave as before for the screens that want one course's papers.
+  const limit = Math.min(100, Math.max(0, Number(req.query.limit) || 0))
+  if (!limit) {
+    const papers = await Paper.find(filter).sort({ createdAt: -1 }).limit(300)
+    return res.json({ papers: await describePapers(papers) })
+  }
+
+  const offset = Math.max(0, Number(req.query.offset) || 0)
+  const [page, total] = await Promise.all([
+    Paper.find(filter).sort({ createdAt: -1 }).skip(offset).limit(limit),
+    Paper.countDocuments(filter),
+  ])
+  res.json({ papers: await describePapers(page), total, hasMore: offset + page.length < total })
 }))
 
 router.get('/next-version', wrap(async (req, res) => {
@@ -364,7 +376,11 @@ router.delete('/papers/:id', wrap(async (req, res) => {
 
 /* --------------------------------- compare -------------------------------- */
 
+// A light list of every course that has papers - counts only, no files - so the
+// Compare page can search, filter and sort without loading any paper. The papers
+// themselves are then fetched 50 courses at a time (see /compare/all?keys=).
 router.get('/compare/courses', wrap(async (req, res) => {
+  const inStatus = status => ({ $addToSet: { $cond: [{ $eq: ['$status', status] }, '$session', null] } })
   const rows = await Paper.aggregate([
     {
       $group: {
@@ -374,15 +390,27 @@ router.get('/compare/courses', wrap(async (req, res) => {
         pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
         approved: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] } },
         rejected: { $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] } },
+        sessions: { $addToSet: '$session' },
+        sessionsPending: inStatus('pending'),
+        sessionsApproved: inStatus('approved'),
+        sessionsRejected: inStatus('rejected'),
       },
     },
-    { $sort: { pending: -1, code: 1 } },
+    { $sort: { _id: 1 } },
   ])
 
+  const count = list => list.filter(Boolean).length
   res.json({
     courses: rows.map(r => ({
       key: r._id, code: r.code, title: findCourse(r.code)?.title || '',
       total: r.total, pending: r.pending, approved: r.approved, rejected: r.rejected,
+      // How many different years the course has under each status filter.
+      years: {
+        all: r.sessions.length,
+        pending: count(r.sessionsPending),
+        approved: count(r.sessionsApproved),
+        rejected: count(r.sessionsRejected),
+      },
     })),
   })
 }))
@@ -397,8 +425,17 @@ const listOrder = (a, b) =>
   || a.version - b.version
   || new Date(a.createdAt) - new Date(b.createdAt)
 
+// `?keys=phy101,cos101` returns only those courses (at most 50 per request) - how
+// the Compare page loads a batch at a time. Without `keys` it returns everything.
+const BATCH = 50
+
 router.get('/compare/all', wrap(async (req, res) => {
-  const found = await Paper.find({}).sort({ courseKey: 1, session: -1, version: 1, createdAt: 1 })
+  const filter = {}
+  if ('keys' in req.query) {
+    const keys = [...new Set(String(req.query.keys).split(',').map(k => k.trim().toLowerCase()).filter(Boolean))].slice(0, BATCH)
+    filter.courseKey = { $in: keys }
+  }
+  const found = await Paper.find(filter).sort({ courseKey: 1, session: -1, version: 1, createdAt: 1 })
   const papers = await describePapers(found)
   const byCourse = new Map()
 

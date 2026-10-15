@@ -320,7 +320,13 @@ function ExistingPapers({ course, session, found, onChanged, onDeleted, onRefres
 // `variant="owner"` is /delealone/upload: same page again, but the paper goes
 // live straight away (no review) and its title - "PHY 101 2023/2024", then
 // "... v2" - is worked out for you.
-export default function Upload({ variant = 'student' }) {
+//
+// `embedded` is the small version that sits inside a Compare course: the course
+// and year are fixed (`fixedCourse`, `fixedSession`), there is no page header or
+// course picker, and `onPublished` is called each time a paper finishes going up.
+export default function Upload({
+  variant = 'student', embedded = false, fixedCourse = '', fixedSession = '', onPublished,
+}) {
   const staff = variant === 'staff'
   const owner = variant === 'owner'
   const signedIn = staff || owner || isAuthed()
@@ -329,8 +335,8 @@ export default function Upload({ variant = 'student' }) {
   // Every course in the catalog, A to Z.
   const courseList = useMemo(getAllCatalogCourses, [])
 
-  const [courseCode, setCourseCode] = useState('')
-  const [session, setSession] = useState('')
+  const [courseCode, setCourseCode] = useState(fixedCourse)
+  const [session, setSession] = useState(fixedSession)
   const [pages, setPages] = useState([])      // photos, in reading order
   const [docs, setDocs] = useState([])        // PDF / Word / etc.
   const [previewId, setPreviewId] = useState(null)
@@ -396,13 +402,13 @@ export default function Upload({ variant = 'student' }) {
   // Owner: everything Nexus already has for the chosen course, newest first.
   // Refreshed whenever a background send finishes.
   useEffect(() => {
-    if (!owner || !courseCode) return
+    if (!owner || !courseCode || embedded) return
     let cancelled = false
     dele.call(`/papers?course=${encodeURIComponent(courseCode)}`)
       .then(({ papers }) => { if (!cancelled) setExisting({ code: courseCode, papers }) })
       .catch(() => { if (!cancelled) setExisting({ code: courseCode, papers: [], failed: true }) })
     return () => { cancelled = true }
-  }, [owner, dele, courseCode, listVersion])
+  }, [owner, dele, courseCode, listVersion, embedded])
 
   // Leaving (or closing the tab) while papers are still going up would cut them off.
   const sendingJobs = jobs.some(j => j.state === 'sending')
@@ -475,15 +481,17 @@ export default function Upload({ variant = 'student' }) {
     else setNotices(problems)
   }, [addPhotos])
 
-  // Paste a screenshot / copied image straight in.
+  // Paste a screenshot / copied image straight in. (Not in the small version:
+  // several of them can be on one page, and a paste must not land in all.)
   useEffect(() => {
+    if (embedded) return
     const onPaste = e => {
       const files = [...(e.clipboardData?.files || [])]
       if (files.length) addFiles(files)
     }
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
-  }, [addFiles])
+  }, [addFiles, embedded])
 
   function replacePage(id, blob) {
     setPages(prev => prev.map(p => {
@@ -644,6 +652,7 @@ export default function Upload({ variant = 'student' }) {
       jobWork.current.delete(id)
       patchJob(id, { state: 'done', paper: owner ? result.paper : null })
       setListVersion(v => v + 1)
+      onPublished?.()
 
       // Confetti for this one, wherever they are on the page by now.
       setBursts(list => [...list, id])
@@ -682,13 +691,16 @@ export default function Upload({ variant = 'student' }) {
     setNotices([])
     setHint(null)
     setPreviewId(null)
-    // Nothing carries over: the next paper starts from a blank form.
-    setCourseCode('')
-    setSession('')
-    setTitle('')
-
-    setLastJob(id)
-    setStage('done')
+    // Nothing carries over: the next paper starts from a blank form. (The small
+    // version belongs to one course and year, so it keeps those and stays on the
+    // form - the job row above it shows how the send is going.)
+    if (!embedded) {
+      setCourseCode('')
+      setSession('')
+      setTitle('')
+      setLastJob(id)
+      setStage('done')
+    }
     runJob(id)
   }
 
@@ -787,19 +799,21 @@ export default function Upload({ variant = 'student' }) {
       : total ? `${total} files` : ''
 
   return (
-    <div className="up-page">
-      <ScrollToTop />
+    <div className={`up-page${embedded ? ' is-embedded' : ''}`}>
+      {!embedded && <ScrollToTop />}
       {celebration}
-      <header className="up-head">
-        <h1 className="up-title">Upload</h1>
-        <p className="up-lead">
-          {owner
-            ? 'Papers you upload here are approved immediately and credited to you.'
-            : staff
-              ? 'Help students with solved or properly documented past questions.'
-              : 'Share a past question paper with everyone studying the same course.'}
-        </p>
-      </header>
+      {!embedded && (
+        <header className="up-head">
+          <h1 className="up-title">Upload</h1>
+          <p className="up-lead">
+            {owner
+              ? 'Papers you upload here are approved immediately and credited to you.'
+              : staff
+                ? 'Help students with solved or properly documented past questions.'
+                : 'Share a past question paper with everyone studying the same course.'}
+          </p>
+        </header>
+      )}
 
       <UploadJobs
         jobs={jobs}
@@ -813,7 +827,7 @@ export default function Upload({ variant = 'student' }) {
       />
 
       {/* The owner doesn't need the pitch - straight to the form */}
-      {!owner && (staff ? (
+      {!owner && !embedded && (staff ? (
         <HeroBanner className="up-hero" title="Send us the good ones." art={<UploadArt />}>
           Most of the past questions on Nexus are simply photos snapped on a phone. If you have
           papers that are <b>solved</b>, or properly typed and formatted as a <b>PDF or Word file</b>,
@@ -827,53 +841,63 @@ export default function Upload({ variant = 'student' }) {
         </HeroBanner>
       ))}
 
-      {/* 1 - which paper */}
-      <section className="up-card">
-        <CardHead tone="blue" icon="book" title="Which paper is it?" sub="Search for the course, then pick the year." />
+      {/* 1 - which paper (the small version already knows: course + year are fixed) */}
+      {!embedded && (
+        <section className="up-card">
+          <CardHead tone="blue" icon="book" title="Which paper is it?" sub="Search for the course, then pick the year." />
 
-        <div className="up-field" ref={courseField}>
-          <span className="up-label">Course</span>
-          <CourseCombobox
-            courses={courseList}
-            value={courseCode}
-            onChange={code => { setCourseCode(code); if (code) setHint(h => (h === 'course' ? null : h)) }}
-            invalid={hint === 'course' && !courseCode}
-            inputRef={courseInput}
-          />
-          {hint === 'course' && !courseCode && <Hint>{HINTS.course}</Hint>}
-        </div>
-
-        <div className="up-field" ref={yearField}>
-          <span className="up-label">Year</span>
-          <div className={`up-years${hint === 'year' && !session ? ' invalid' : ''}`} role="radiogroup" aria-label="Year">
-            {SESSIONS.map(s => (
-              <button
-                key={s}
-                type="button"
-                role="radio"
-                aria-checked={session === s}
-                className={`up-year${session === s ? ' on' : ''}`}
-                onClick={() => { setSession(s); setHint(h => (h === 'year' ? null : h)) }}
-              >
-                {session === s && <UiIcon name="check" size={14} />}
-                {s}
-              </button>
-            ))}
+          <div className="up-field" ref={courseField}>
+            <span className="up-label">Course</span>
+            <CourseCombobox
+              courses={courseList}
+              value={courseCode}
+              onChange={code => { setCourseCode(code); if (code) setHint(h => (h === 'course' ? null : h)) }}
+              invalid={hint === 'course' && !courseCode}
+              inputRef={courseInput}
+            />
+            {hint === 'course' && !courseCode && <Hint>{HINTS.course}</Hint>}
           </div>
-          {hint === 'year' && !session && <Hint>{HINTS.year}</Hint>}
-        </div>
 
-        {owner && title && (
-          <p className="up-saveas">
-            <UiIcon name="doc" size={18} />
-            <span>Will be saved as</span>
-            <strong>{title}</strong>
-          </p>
-        )}
-      </section>
+          <div className="up-field" ref={yearField}>
+            <span className="up-label">Year</span>
+            <div className={`up-years${hint === 'year' && !session ? ' invalid' : ''}`} role="radiogroup" aria-label="Year">
+              {SESSIONS.map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  role="radio"
+                  aria-checked={session === s}
+                  className={`up-year${session === s ? ' on' : ''}`}
+                  onClick={() => { setSession(s); setHint(h => (h === 'year' ? null : h)) }}
+                >
+                  {session === s && <UiIcon name="check" size={14} />}
+                  {s}
+                </button>
+              ))}
+            </div>
+            {hint === 'year' && !session && <Hint>{HINTS.year}</Hint>}
+          </div>
+
+          {owner && title && (
+            <p className="up-saveas">
+              <UiIcon name="doc" size={18} />
+              <span>Will be saved as</span>
+              <strong>{title}</strong>
+            </p>
+          )}
+        </section>
+      )}
+
+      {embedded && title && (
+        <p className="up-saveas">
+          <UiIcon name="doc" size={18} />
+          <span>Will be saved as</span>
+          <strong>{title}</strong>
+        </p>
+      )}
 
       {/* Owner: what is already there for this course / year */}
-      {owner && course && (
+      {owner && !embedded && course && (
         <ExistingPapers
           course={course}
           session={session}

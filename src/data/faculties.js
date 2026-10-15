@@ -63,7 +63,7 @@ export function levelsOf(catalog, programme) {
 }
 
 // Every course a department teaches, with the level it sits at, de-duplicated.
-// [{ code, title, creditHours, level }] sorted by level then code.
+// [{ code, title, level }] sorted by level then code.
 export function coursesOfDepartment(catalog, department) {
   const byCode = new Map()
   for (const level of levelsOf(catalog, department)) {

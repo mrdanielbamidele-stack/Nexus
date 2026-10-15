@@ -1,7 +1,7 @@
 // The past questions students can open, as served by /api/papers.
 //
-// Course key = pqKey(code): lowercase, no spaces/hyphens, "TUM" prefix dropped
-//              ("COS 101" -> "cos101"). It is also what the routes use.
+// Course key = pqKey(code): lowercase, no spaces/hyphens, "TUM" prefix kept
+//              ("COS 101" -> "cos101", "TUM-GES 101" -> "tumges101"). It is also what the routes use.
 // Year key   = the session as 8 digits ("20232024"); a second paper for the same
 //              course + session is "20232024-v2", and so on.
 //

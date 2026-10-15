@@ -648,6 +648,61 @@ describe('changing course of study and level', () => {
   })
 })
 
+describe('reseat courses (last semester)', () => {
+  const email = '202500066@topfaith.edu.ng'
+  const s = browser()
+
+  it('starts empty, and keeps only Beta semester courses, once each', async () => {
+    await s.call('POST', '/api/auth/signup', signupBody({ email }))
+    await verify(email)
+    await s.call('POST', '/api/auth/login', { role: 'student', email, password: 'correct-horse' })
+
+    const me = (await s.call('GET', '/api/me')).json.student
+    assert.deepEqual(me.reseatCourses, [])
+
+    // "chm 102" is the same course as "CHM 102"; COS 101 is this semester's, not a reseat.
+    const saved = await s.call('PUT', '/api/student/reseat-courses', {
+      courses: ['chm 102', 'CHM 102', 'COS 101', 'NOT A COURSE', 'TUM-GES 104'],
+    })
+    assert.equal(saved.status, 200)
+    assert.deepEqual(saved.json.me.reseatCourses, ['CHM 102', 'TUM-GES 104'])
+
+    // This semester's list is a separate list and is left alone.
+    assert.ok(saved.json.me.courses.includes('COS 101'))
+    assert.ok(!saved.json.me.courses.includes('CHM 102'))
+  })
+
+  it('remembers them on the account and lets them all be removed', async () => {
+    const again = browser()
+    await again.call('POST', '/api/auth/login', { role: 'student', email, password: 'correct-horse' })
+    assert.deepEqual((await again.call('GET', '/api/me')).json.student.reseatCourses, ['CHM 102', 'TUM-GES 104'])
+
+    const cleared = await again.call('PUT', '/api/student/reseat-courses', { courses: [] })
+    assert.deepEqual(cleared.json.me.reseatCourses, [])
+
+    const bad = await again.call('PUT', '/api/student/reseat-courses', { courses: 'CHM 102' })
+    assert.equal(bad.status, 400)
+    assert.equal(bad.json.error.code, 'BAD_COURSES')
+  })
+
+  it('needs a signed-in student', async () => {
+    const r = await browser().call('PUT', '/api/student/reseat-courses', { courses: ['CHM 102'] })
+    assert.equal(r.status, 401)
+  })
+
+  it('accepts a paper for a Beta semester course', async () => {
+    const sent = await browser().call('POST', '/api/papers', {
+      courseCode: 'CHM 102', session: '2024/2025',
+      files: [{
+        url: 'https://res.cloudinary.com/democloud/image/upload/v1/nexus/papers/b/page-1.jpg',
+        publicId: 'nexus/papers/b/page-1', resourceType: 'image', format: 'jpg', bytes: 10, name: 'page-1.jpg', kind: 'page', page: 1,
+      }],
+    })
+    assert.equal(sent.status, 201)
+    assert.equal(sent.json.title, 'CHM 102 2024/2025')
+  })
+})
+
 describe('sessions last 6 months and start again when you come back', () => {
   const DAYS = 24 * 60 * 60
   const decode = token => JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString())
@@ -752,5 +807,78 @@ describe('owner-made staff accounts', () => {
 
     const listed = (await owner.call('GET', `/api/dele/users?q=${body.email}`)).json.users[0]
     assert.equal(listed.createdByOwner, true)
+  })
+})
+
+describe('TUM- courses are not the plain course with the same number', () => {
+  const fileFor = name => ({
+    url: `https://res.cloudinary.com/democloud/image/upload/v1/nexus/papers/tum/${name}`,
+    publicId: `nexus/papers/tum/${name.replace(/\.\w+$/, '')}`,
+    resourceType: 'image', format: 'jpg', bytes: 1000, name, kind: 'page', page: 1,
+  })
+
+  it('keeps GET 301 and TUM-GET 301 as two courses with their own titles', async () => {
+    const owner = browser()
+    await owner.call('POST', '/api/dele/login', { password1: 'first-pass', password2: 'second-pass' })
+
+    const plain = await owner.call('POST', '/api/dele/papers', { courseCode: 'GET 301', session: '2023/2024', files: [fileFor('plain.jpg')] })
+    const tum = await owner.call('POST', '/api/dele/papers', { courseCode: 'TUM-GET 301', session: '2023/2024', files: [fileFor('tum.jpg')] })
+    assert.equal(plain.json.paper.title, 'GET 301 2023/2024')
+    assert.equal(tum.json.paper.title, 'TUM-GET 301 2023/2024') // not "v2" of GET 301
+
+    const courses = (await browser().call('GET', '/api/papers')).json.courses
+    assert.equal(courses.get301.title, 'Engineering Mathematics III')
+    assert.equal(courses.tumget301.title, 'Engineering Economics')
+    assert.deepEqual(Object.keys(courses.get301.years), ['20232024'])
+    assert.deepEqual(Object.keys(courses.tumget301.years), ['20232024'])
+  })
+
+  it('files the seeded originals under their TUM- codes', async () => {
+    const courses = (await browser().call('GET', '/api/papers')).json.courses
+    assert.equal(courses.tumcsc112.code, 'TUM-CSC 112')
+    assert.equal(courses.tumges101.title, 'Law, Man and Society')
+    assert.equal(courses.ges101, undefined)
+  })
+})
+
+describe('the owner lists load in batches', () => {
+  const owner = browser()
+
+  it('sign in', async () => {
+    const r = await owner.call('POST', '/api/dele/login', { password1: 'first-pass', password2: 'second-pass' })
+    assert.equal(r.status, 200)
+  })
+
+  it('gives a light course list (counts only) that is enough to sort and filter', async () => {
+    const { courses } = (await owner.call('GET', '/api/dele/compare/courses')).json
+    const phy = courses.find(c => c.key === 'phy101')
+    assert.ok(phy.total >= 2)
+    assert.ok(phy.years.all >= 2) // 2023/2024 and 2022/2023
+    assert.equal(phy.papers, undefined) // no papers in the light list
+    assert.ok(courses.every(c => typeof c.years.approved === 'number'))
+  })
+
+  it('fetches the papers of only the courses asked for', async () => {
+    const one = (await owner.call('GET', '/api/dele/compare/all?keys=phy101')).json.courses
+    assert.deepEqual(one.map(c => c.key), ['phy101'])
+    assert.ok(one[0].papers.length >= 2)
+
+    // asking for nothing returns nothing - never "everything"
+    const none = (await owner.call('GET', '/api/dele/compare/all?keys=')).json.courses
+    assert.deepEqual(none, [])
+  })
+
+  it('pages the papers list and says whether there is more', async () => {
+    const first = (await owner.call('GET', '/api/dele/papers?limit=2&offset=0')).json
+    assert.equal(first.papers.length, 2)
+    assert.ok(first.total >= 3)
+    assert.equal(first.hasMore, true)
+
+    const past = (await owner.call('GET', `/api/dele/papers?limit=2&offset=${first.total}`)).json
+    assert.deepEqual(past.papers, [])
+    assert.equal(past.hasMore, false)
+
+    const second = (await owner.call('GET', '/api/dele/papers?limit=2&offset=2')).json
+    assert.ok(!second.papers.some(p => first.papers.some(f => f.id === p.id)))
   })
 })

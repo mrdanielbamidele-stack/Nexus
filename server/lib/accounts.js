@@ -39,6 +39,7 @@ export function studentShape(user) {
     programme: user.programme,
     level: user.level,
     courses: user.courses || [],
+    reseatCourses: user.reseatCourses || [],
   }
 }
 

@@ -50,5 +50,6 @@ export function applyServerStudent(me) {
     courseOS: me.programme,
     level: me.level,
     courses: me.courses,
+    reseatCourses: me.reseatCourses,
   });
 }

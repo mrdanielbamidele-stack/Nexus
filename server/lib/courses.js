@@ -1,17 +1,20 @@
-// Server-side view of the course catalogue (the same data file the browser uses).
+// Server-side view of the course catalogues (the same data files the browser uses).
+//
+//   courseCatalog   this semester's (Primo) courses - what sign-up and "My courses" use
+//   betaCatalog     last semester's (Beta) courses - what reseats are chosen from
+//
+// A paper can be filed under a course from either, so findCourse looks in both.
 
 import { courseCatalog } from '../../src/data/courseCatalog.js'
+import { betaCatalog } from '../../src/data/betaCatalog.js'
 import { pqKey } from '../../src/lib/courseSlug.js'
 
-export { pqKey, courseCatalog }
+export { pqKey, courseCatalog, betaCatalog }
 
-let index = null
-
-// pqKey -> { code, title } for every course in the catalogue.
-function courseIndex() {
-  if (index) return index
-  index = new Map()
-  for (const levels of Object.values(courseCatalog)) {
+// pqKey -> { code, title } for every course in a catalogue.
+function indexOf(catalog) {
+  const index = new Map()
+  for (const levels of Object.values(catalog)) {
     for (const list of Object.values(levels)) {
       for (const course of list) {
         const key = pqKey(course.code)
@@ -22,9 +25,23 @@ function courseIndex() {
   return index
 }
 
-export const findCourse = codeOrKey => courseIndex().get(pqKey(codeOrKey)) || null
+let primo = null
+let beta = null
+const primoIndex = () => (primo ||= indexOf(courseCatalog))
+const betaIndex = () => (beta ||= indexOf(betaCatalog))
 
-export const hasCourse = code => courseIndex().has(pqKey(code))
+// Any course Nexus has papers for: this semester's first, then last semester's.
+export const findCourse = codeOrKey => {
+  const key = pqKey(codeOrKey)
+  return primoIndex().get(key) || betaIndex().get(key) || null
+}
+
+// This semester's courses only (the "My courses" list).
+export const hasCourse = code => primoIndex().has(pqKey(code))
+
+// Last semester's courses only (the reseat list). Returns { code, title } with
+// the catalogue's own spelling of the code, or null.
+export const findReseatCourse = code => betaIndex().get(pqKey(code)) || null
 
 export const programmes = () => Object.keys(courseCatalog)
 

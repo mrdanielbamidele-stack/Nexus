@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { useEffectiveCourses } from '../lib/studentCourses'
+import { useEffectiveCourses, useReseatCourses } from '../lib/studentCourses'
 import { getAvailableYears, pqKey, usePapers, usePapersReady } from '../lib/pastQuestions'
 import { CourseCardPending } from '../components/Skeleton'
 import ScrollToTop from '../components/ScrollToTop';
@@ -55,6 +55,7 @@ function RenderTestCards({ courses }) {
 export default function PastQuestions() {
   usePapers() // re-render when the paper list loads or changes
   const allCourses = useEffectiveCourses()
+  const reseatCourses = useReseatCourses()
   return (
     <>
      <ScrollToTop />
@@ -62,6 +63,15 @@ export default function PastQuestions() {
       <div className="cards">
         <RenderTestCards courses={allCourses} />
       </div>
+
+      {reseatCourses.length > 0 && (
+        <section className="section">
+          <h2>Reseat Courses</h2>
+          <div className="cards">
+            <RenderTestCards courses={reseatCourses} />
+          </div>
+        </section>
+      )}
 
       <LynklensAd variant="banner" />
     </>

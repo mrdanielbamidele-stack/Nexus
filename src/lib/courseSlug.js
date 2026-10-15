@@ -6,19 +6,21 @@ export const codeToSlug = (code) => (code ?? "").replace(/\s+/g, "");
 export const normalizeCode = (code) => (code ?? "").toLowerCase().replace(/\s+/g, "");
 
 // Course code -> the clean key past questions are filed and routed under:
-// lowercase, no spaces/hyphens, institutional "TUM" prefix dropped.
-//   "COS 101" -> "cos101",  "TUM-CSC 112" -> "csc112"
+// lowercase, no spaces/hyphens. The "TUM" prefix is KEPT: TUM-GET 301 and
+// GET 301 are two different courses, so they must never share a key.
+//   "COS 101" -> "cos101",  "TUM-CSC 112" -> "tumcsc112"
 // The server and the browser both use this one function, so they always agree.
 export const pqKey = (code) =>
-  (code ?? "").toLowerCase().replace(/[\s-]/g, "").replace(/^tum/, "");
+  (code ?? "").toLowerCase().replace(/[\s-]/g, "");
 
 // Slug / DB code -> nice display label:  "cos101" / "Phy 101" -> "COS 101",
-// "tum-ges103" -> "TUM-GES 103".  We strip existing spaces then re-insert one
-// between the letter prefix and the course number so the URL slug (no space)
-// still reads nicely in the UI.
+// "tum-ges103" / "tumges103" -> "TUM-GES 103".  We strip existing spaces then
+// re-insert one between the letter prefix and the course number so the URL slug
+// (no space) still reads nicely in the UI.
 export const formatCode = (code) =>
   (code ?? "")
     .replace(/\s+/g, "")
+    .replace(/^tum(?=[a-z])/i, "TUM-")
     .replace(/([a-zA-Z]+)(\d.*)$/, "$1 $2")
     .toUpperCase();
 

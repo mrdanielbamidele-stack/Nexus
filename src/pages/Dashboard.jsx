@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import ScrollToTop from '../components/ScrollToTop'
 import HeroBanner from '../components/HeroBanner'
 import LynklensAd from '../components/LynklensAd'
-import { useEffectiveCourses } from '../lib/studentCourses'
+import { useEffectiveCourses, useReseatCourses } from '../lib/studentCourses'
 import { CourseCardPending } from '../components/Skeleton'
 import { getAvailableYears, pqKey, usePapers, usePapersReady } from '../lib/pastQuestions'
 import { getContinueList } from '../lib/readingProgress'
@@ -97,6 +97,8 @@ export default function Dashboard() {
   const inProgress = getContinueList()
   // The courses on the student's account (their programme + level to begin with).
   const courseList = useEffectiveCourses()
+  // Last semester's courses they are sitting again (added in Settings).
+  const reseatList = useReseatCourses()
 
   // Search state for "Your Courses" section
   const [query, setQuery] = useState('')
@@ -158,6 +160,24 @@ export default function Dashboard() {
           />
         </div>
         <PastQuestionsGrid courses={filtered} />
+      </section>
+
+      {/* Courses carried over from last semester - added in Settings */}
+      <section className="section">
+        <h2>Reseat Courses</h2>
+        {reseatList.length > 0 ? (
+          <PastQuestionsGrid courses={reseatList} />
+        ) : (
+          <>
+            <p className="muted" style={{ marginTop: 0 }}>
+             Add the courses you are sitting again from last
+              semester and their past questions will show up here.
+            </p>
+            <Link to="/settings?section=reseat">
+              <button className="show-more-btn">Add reseat courses</button>
+            </Link>
+          </>
+        )}
       </section>
 
       <LynklensAd variant="footer" />

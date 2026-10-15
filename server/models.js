@@ -24,6 +24,7 @@ const userSchema = new Schema(
     programme: String,
     level: String,
     courses: [String], // every course they take - all of them removable
+    reseatCourses: [String], // last semester's (Beta) courses they are sitting again
 
     // admin
     faculty: String,
